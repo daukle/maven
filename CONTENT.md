@@ -16,8 +16,12 @@ maintain by hand. A Lua fragment is included:
 
 ```lua
 -- daukle.lua
-daukle.include("build/daukle/maven/classpath.lua")
+daukle.include("daukle/maven/classpath.lua")
 ```
+
+The generated file is committed and lives in `daukle/`, beside the `build/` that `daukle clean`
+deletes. The two have opposite lifetimes: build output is rebuilt from nothing, and resolved pins
+are what lets a clone build offline without resolving again.
 
 `daukle.toml` keeps what you wrote. The pins live in a file marked "do not edit" and nothing ever
 asks you to touch it. The generated fragment appends rather than assigns, so a classpath entry you

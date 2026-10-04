@@ -48,7 +48,7 @@ daukle.include("build/daukle/maven/classpath.lua")
 
 ```sh
 daukle maven:list                 # resolve only, no downloads: build/daukle/maven/resolved.txt
-daukle maven:resolve --resolve    # resolve, fetch, hash: build/daukle/maven/classpath.lua
+daukle maven:resolve --resolve    # resolve, fetch, hash: daukle/maven/classpath.lua
 ```
 
 **Nothing is pasted anywhere, and that is the point.** The generated file is Lua rather than
@@ -60,10 +60,15 @@ nobody is ever asked to edit the second. It APPENDS to the classpath, so a hand-
 **Proved end to end**: `intisy/libs/java-utils` compiles to its 39 classes with an eleven line
 `daukle.toml` carrying no pins at all and a `daukle.lua` carrying one `include`.
 
-**The open question is where that generated file should LIVE if it is to be committed.** A fresh
-clone that has never resolved has no `build/daukle/maven/classpath.lua`, and `daukle.include`
-raises on a file that is not there, so the manifest will not even parse. Either the generated file
-is committed, or the include needs an optional form, or a clone must resolve before it can build.
+**It is written to `daukle/maven/`, which is COMMITTED**, not to `build/`, which is not. The two
+directories have opposite lifetimes: `build/daukle/` is what a tool produces on the way to an
+artifact and `daukle clean` deletes it, while `daukle/` is what a resolve produced and a clone has
+to carry. A clone with no pins could not build at all, because an ordinary build may not fetch
+anything unpinned, and it could not even parse its manifest, since `daukle.include` raises on a
+file that is not there.
+
+`daukle.write{ committed = true }` is gated behind `--resolve` for the same reason `daukle.pin`
+is: an ordinary build must not rewrite a file the project has committed.
 
 `--resolve` is not optional. Without it `daukle.pin` raises and names the flag, because the
 unpinned fetch is the one acquisition in daukle that does not verify what it got.

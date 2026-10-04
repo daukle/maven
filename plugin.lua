@@ -117,7 +117,7 @@ local function render(entries, key)
     "-- publishes no .sha256 for these artifacts.",
     "--",
     "-- Include it from daukle.lua:",
-    "--   daukle.include(\"build/daukle/maven/" .. OUTPUT .. "\")",
+    "--   daukle.include(\"daukle/maven/" .. OUTPUT .. "\")",
     "",
     "local toolchain = daukle.config.toolchains and daukle.config.toolchains." .. key,
     "if toolchain == nil then",
@@ -165,7 +165,11 @@ daukle.task{
     end
 
     local into = config["for"] or "java"
-    local path = daukle.write{ path = OUTPUT, text = render(entries, into) }
+    --[[ committed, because a clone has to build without resolving again: an
+         ordinary build may not fetch anything unpinned, so the pins have to be
+         in the project's history. It lands in daukle/maven/ rather than
+         build/daukle/maven/, which daukle clean deletes. ]]
+    local path = daukle.write{ path = OUTPUT, text = render(entries, into), committed = true }
     --[[ A plugin has no way to print, so the file IS the report. Raising here
          would fail the task, so the count reaches the user through the
          acquisition report daukle.pin already writes: one line per artifact,

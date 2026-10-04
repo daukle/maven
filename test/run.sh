@@ -87,10 +87,14 @@ run_case() {
 
   # A case asserts on the generated classpath when it ships one, and on the
   # resolved module list otherwise.
+  # resolved.txt is derived and lives under build/; classpath.lua is committed
+  # and lives in daukle/, which is the whole point of the two directories.
   wanted_name=resolved.txt
-  [ -f "$case_dir/expected/classpath.lua" ] && wanted_name=classpath.lua
-
-  produced="$sandbox/build/daukle/maven/$wanted_name"
+  produced="$sandbox/build/daukle/maven/resolved.txt"
+  if [ -f "$case_dir/expected/classpath.lua" ]; then
+    wanted_name=classpath.lua
+    produced="$sandbox/daukle/maven/classpath.lua"
+  fi
   if [ ! -f "$produced" ]; then
     fail "$name" "no $wanted_name was written"
     return
