@@ -1,0 +1,24 @@
+name: Test
+
+on: [push, pull_request, workflow_dispatch]
+
+permissions:
+  contents: read
+
+jobs:
+  test:
+    uses: intisy/workflows/.github/workflows/test.yml@main
+    with:
+      line_endings: true
+      toolchains: cmake
+      runners: '["ubuntu-latest", "windows-latest", "macos-latest"]'
+      extra_repository: daukle/daukle
+      extra_path: .daukle
+      extra_ref: development
+      cmake_configure: '-S .daukle -B .daukle/build -DCMAKE_BUILD_TYPE=Release'
+      cmake_build: '--build .daukle/build --config Release'
+      cmake_test: ''
+      post_test: 'test/run.sh'
+      apt_packages: libcurl4-openssl-dev
+    secrets:
+      envPAT: ${{ secrets.PAT }}

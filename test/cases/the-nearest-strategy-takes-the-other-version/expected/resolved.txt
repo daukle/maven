@@ -1,0 +1,7 @@
+org.kohsuke:github-api:1.99
+org.apache.commons:commons-lang3:3.9
+com.fasterxml.jackson.core:jackson-databind:2.10.0
+com.fasterxml.jackson.core:jackson-annotations:2.10.0
+com.fasterxml.jackson.core:jackson-core:2.10.0
+commons-io:commons-io:2.6
+commons-codec:commons-codec:1.13

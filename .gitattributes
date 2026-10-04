@@ -1,0 +1,4 @@
+# Every case compares bytes against what daukle writes, which is LF on every
+# platform. Letting core.autocrlf rewrite a checkout would fail the comparison
+# on Windows for a reason that has nothing to do with the plugin.
+* -text
