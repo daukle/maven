@@ -1,0 +1,12 @@
+local toolchain = daukle.config.toolchains and daukle.config.toolchains.java
+if toolchain == nil then
+  error('daukle.config.toolchains.java does not exist: maven resolved for "'
+        .. 'java" but the manifest declares no such toolchain', 0)
+end
+local classpath = toolchain.classpath or {}
+classpath[#classpath + 1] = {
+  url = "https://repo1.maven.org/maven2/org/slf4j/slf4j-api/1.7.36/slf4j-api-1.7.36.jar",
+  sha256 = "d3ef575e3e4979678dc01bf1dcce51021493b4d11fb7f1be8ad982877c16a1c0",
+  as = "slf4j-api 1.7.36",
+}
+toolchain.classpath = classpath

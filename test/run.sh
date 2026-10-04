@@ -57,9 +57,13 @@ run_case() {
 
   task=maven:list
   [ -f "$case_dir/task" ] && task=$(cat "$case_dir/task")
+  # Unquoted on purpose: a task line may carry flags, and maven:resolve needs
+  # --resolve to be allowed to fetch anything unpinned at all.
+  # shellcheck disable=SC2086
+  set -- $task
 
   if [ -f "$case_dir/expect-error.txt" ]; then
-    if (cd "$sandbox" && "$daukle" "$task" >stdout.txt 2>stderr.txt); then
+    if (cd "$sandbox" && "$daukle" "$@" >stdout.txt 2>stderr.txt); then
       fail "$name" "expected a failure, got success"
       return
     fi
@@ -74,29 +78,34 @@ run_case() {
     return
   fi
 
-  if ! (cd "$sandbox" && "$daukle" "$task" >stdout.txt 2>stderr.txt); then
+  if ! (cd "$sandbox" && "$daukle" "$@" >stdout.txt 2>stderr.txt); then
     echo "--- stderr ---" >&2
     cat "$sandbox/stderr.txt" >&2
     fail "$name" "$task failed"
     return
   fi
 
-  produced="$sandbox/build/daukle/maven/resolved.txt"
+  # A case asserts on the generated classpath when it ships one, and on the
+  # resolved module list otherwise.
+  wanted_name=resolved.txt
+  [ -f "$case_dir/expected/classpath.lua" ] && wanted_name=classpath.lua
+
+  produced="$sandbox/build/daukle/maven/$wanted_name"
   if [ ! -f "$produced" ]; then
-    fail "$name" "no resolved.txt was written"
+    fail "$name" "no $wanted_name was written"
     return
   fi
 
   # The comment lines carry counts that move when Central publishes a new
-  # parent POM, so the assertion is the module list, which does not.
-  grep -v '^#' "$produced" | grep -v '^[[:space:]]*$' | sort > "$sandbox/actual.txt"
-  grep -v '^#' "$case_dir/expected/resolved.txt" | grep -v '^[[:space:]]*$' | sort \
+  # parent POM, so the assertion is the content, which does not.
+  grep -vE '^(#|--)' "$produced" | grep -v '^[[:space:]]*$' | sort > "$sandbox/actual.txt"
+  grep -vE '^(#|--)' "$case_dir/expected/$wanted_name" | grep -v '^[[:space:]]*$' | sort \
     > "$sandbox/wanted.txt"
 
   if ! diff -u "$sandbox/wanted.txt" "$sandbox/actual.txt" >"$sandbox/diff.txt" 2>&1; then
     echo "--- $name ---" >&2
     cat "$sandbox/diff.txt" >&2
-    fail "$name" "the resolved closure differs"
+    fail "$name" "the generated $wanted_name differs"
     return
   fi
   passed=$((passed + 1))

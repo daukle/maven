@@ -41,15 +41,29 @@ coordinates = [
 ]
 ```
 
-```sh
-daukle maven:list                 # resolve only, no downloads: build/daukle/maven/resolved.txt
-daukle maven:resolve --resolve    # resolve, fetch, hash: build/daukle/maven/classpath.toml
+```lua
+-- daukle.lua, the one line a human writes to use the result
+daukle.include("build/daukle/maven/classpath.lua")
 ```
 
-Paste `classpath.toml` into the manifest. **That paste is the part that is not finished**, and
-section 6.3 of the spec is the ask that would remove it: a lock file has to be committed to be
-worth anything and no plugin may write at the project root. Until then this is the spec's
-section 8 fallback, which works and is a worse design.
+```sh
+daukle maven:list                 # resolve only, no downloads: build/daukle/maven/resolved.txt
+daukle maven:resolve --resolve    # resolve, fetch, hash: build/daukle/maven/classpath.lua
+```
+
+**Nothing is pasted anywhere, and that is the point.** The generated file is Lua rather than
+TOML so it can be `daukle.include`d, which keeps the resolved pins in a file of their own:
+`daukle.toml` holds what the human wrote, `classpath.lua` holds what the resolver computed, and
+nobody is ever asked to edit the second. It APPENDS to the classpath, so a hand-written entry in
+`daukle.toml` survives beside the resolved ones.
+
+**Proved end to end**: `intisy/libs/java-utils` compiles to its 39 classes with an eleven line
+`daukle.toml` carrying no pins at all and a `daukle.lua` carrying one `include`.
+
+**The open question is where that generated file should LIVE if it is to be committed.** A fresh
+clone that has never resolved has no `build/daukle/maven/classpath.lua`, and `daukle.include`
+raises on a file that is not there, so the manifest will not even parse. Either the generated file
+is committed, or the include needs an optional form, or a clone must resolve before it can build.
 
 `--resolve` is not optional. Without it `daukle.pin` raises and names the flag, because the
 unpinned fetch is the one acquisition in daukle that does not verify what it got.

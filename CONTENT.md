@@ -8,6 +8,21 @@ runs nothing.
 pinned by whoever wrote the manifest; this one starts from a coordinate and ends with a digest it
 computed.
 
+## Generated data never touches the file you wrote
+
+`maven:resolve` writes **Lua**, not TOML, and the difference is the whole ergonomics of the thing.
+A TOML fragment has to be pasted into `daukle.toml`, mixing generated rows into the one file you
+maintain by hand. A Lua fragment is included:
+
+```lua
+-- daukle.lua
+daukle.include("build/daukle/maven/classpath.lua")
+```
+
+`daukle.toml` keeps what you wrote. The pins live in a file marked "do not edit" and nothing ever
+asks you to touch it. The generated fragment appends rather than assigns, so a classpath entry you
+declared by hand survives beside the twenty the resolver found.
+
 ## What it is worth, measured
 
 Against `intisy/libs/java-utils`, a real library:
