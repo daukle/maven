@@ -1,0 +1,27 @@
+name: Publish
+
+# A tag push is the whole release mechanism. The asset is one uncompressed tar of
+# plugin.lua and lib/, which is the shape core's unpacker reads and the shape every
+# multi-file plugin in this org already ships.
+on:
+  push:
+    tags:
+      - '*'
+
+permissions:
+  contents: write
+
+jobs:
+  publish:
+    uses: intisy/workflows/.github/workflows/publish.yml@main
+    with:
+      # Nothing here is an npm package, a jar or a gradle plugin, so detection is
+      # turned off rather than left to find nothing: a silent empty detection and a
+      # deliberate "publish only the asset" look the same in a log.
+      targets: none
+      toolchains: none
+      post_build: 'mkdir -p dist && tar -cf dist/plugin.lua plugin.lua lib/*.lua'
+      release_assets: 'dist/plugin.lua'
+      release_notes_from_commit: true
+    secrets:
+      envPAT: ${{ secrets.PAT }}
