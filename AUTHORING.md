@@ -17,8 +17,15 @@ Against `intisy/libs/java-utils`, the project both `D-48` measurements used:
 | sweeps to a fixed point | 3 |
 | POM fetches | 63 |
 | resolve with digests | 3.8 seconds, 21.5 MB |
-| `java:compile` against the generated classpath | **39 class files, equal to Gradle's 39** |
+| `java:compile` against the generated classpath | **39 class files, equal to Gradle's 39, on the same JDK** |
 | downloads during that compile | **0** |
+
+**"On the same JDK" is load bearing and was added on 2026-10-05 after measuring it.** Gradle 8.13
+on Corretto 17 gives 39, `daukle/java` with `version = "17"` gives 39, and `daukle/java` on its
+own default JDK gives **38**: javac 21 does not emit the synthetic `$SwitchMap` holder that javac
+17 emits for an enum `switch`. Neither compilation is wrong and `release = 8` changes nothing,
+because the variable is the compiler rather than the target. The honest claim is that the two
+tools agree when told to use the same JDK.
 
 **The whole chain runs with no Gradle anywhere**: eight coordinates in, a compiled library out.
 The second measurement's standing finding, that the twenty pinned blocks had to come from a cache

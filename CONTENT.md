@@ -36,7 +36,7 @@ Against `intisy/libs/java-utils`, a real library:
 | declared coordinates | 8 |
 | modules resolved | **20, identical to Gradle's `runtimeClasspath`, version for version** |
 | POM fetches | 63 |
-| `java:compile` against the result | **39 class files, equal to Gradle's 39** |
+| `java:compile` against the result | **39 class files, equal to Gradle's 39, on the same JDK** |
 | downloads during that compile | **0** |
 | declared test coordinates | 2 |
 | test closure | **30 modules**, against Gradle's 29 on `testRuntimeClasspath` |
