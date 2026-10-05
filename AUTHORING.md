@@ -39,12 +39,19 @@ coordinates = [
   "org.slf4j:slf4j-api:1.7.36",
   "com.github.codemonstur:embedded-redis:1.4.3",
 ]
+testCoordinates = ["org.assertj:assertj-core:3.25.3"]
 ```
 
 ```lua
 -- daukle.lua, the one line a human writes to use the result
-daukle.include("build/daukle/maven/classpath.lua")
+daukle.include("daukle/maven/classpath.lua")
 ```
+
+**That line goes in AFTER the first resolve, not before.** `daukle.include` raises on a file that
+is not there, and the first resolve is the run that creates it, so a project carrying the line on
+a fresh checkout with no `daukle/maven/` cannot even parse its manifest to run the resolve. On
+every later run, and in every clone, the file is committed and the line is what makes it load.
+This file said `build/daukle/...` until 2026-10-05, which is a path the resolve has never written.
 
 ```sh
 daukle maven:list                 # resolve only, no downloads: build/daukle/maven/resolved.txt
@@ -78,9 +85,56 @@ unpinned fetch is the one acquisition in daukle that does not verify what it got
 | key | meaning |
 | --- | --- |
 | `coordinates` | required, a list of `group:artifact:version` |
+| `testCoordinates` | optional, the test-only ones. A second closure and a `testClasspath` block |
 | `strategy` | `"highest"` (default, Gradle's rule) or `"nearest"` (Maven's) |
 | `repository` | defaults to Maven Central |
 | `for` | which toolchain the generated blocks name, default `"java"` |
+
+## The test closure
+
+`testCoordinates` produces a **second, independent resolve** whose roots are the compile
+coordinates **plus** the test ones, because a test compiles and runs against the project's own
+dependencies as well as its test-only ones. It is not the compile closure with extras bolted on:
+Gradle resolves `testRuntimeClasspath` as its own configuration, so a test dependency may raise a
+version the compile side never sees.
+
+The generated `testClasspath` block carries **only what the compile closure lacks**, because
+`daukle/java` reaches a test through `classpath` followed by `testClasspath` and a module written
+to both would be acquired and placed twice.
+
+**A module the two closures resolve DIFFERENTLY is refused by name.** The compile entry comes
+first, so it would win, and the tests would run against a version neither closure chose with
+nothing reporting it. The message names every clashing module and both versions. Raise the version
+in `coordinates`, or drop the test coordinate that pulls the other one.
+
+### Measured against `intisy/libs/java-utils`
+
+| | daukle | Gradle |
+| --- | --- | --- |
+| compile closure | 20 | 20 `runtimeClasspath` |
+| test closure | **30** | 29 `testRuntimeClasspath` |
+| `java:test` | **4 containers, 6 tests, 6 successful** | `tests="6" failures="0"` |
+
+Two `testCoordinates` lines in place of nine hand-written pinned blocks.
+
+**The one module of difference is `org.apiguardian:apiguardian-api:1.1.2`, and it is the first
+real instance of the Gradle-module-metadata limit this file already names.**
+`junit-platform-commons`' POM declares it at `compile` scope; its `.module` puts it in
+`apiElements` and **not** in `runtimeElements`, a split a POM has no way to express. So Gradle's
+test RUNTIME classpath omits it while Gradle's test COMPILE classpath carries it, and daukle's
+single test closure equals the latter and is a one-jar superset of the former. An annotation jar
+on the test classpath changes no result; a module that mattered would.
+
+### What proves the test closure is load bearing, and what cannot
+
+**The console launcher bundles JUnit 4, jupiter and hamcrest**, so a project whose tests use any of
+them runs green with an **empty** `testClasspath`. Both were tried as negative controls here and
+both passed with the resolved block deleted, which proves nothing about resolution.
+
+The honest probe is a test-only library the launcher does not carry. With
+`testCoordinates = ["org.assertj:assertj-core:3.25.3"]`, the resolve produces `assertj-core` and
+its `byte-buddy`, the test passes, and **deleting the `assertj-core` block fails `java:test-compile`
+with `cannot find symbol: method assertThat`**. That is the control that means something.
 
 **`strategy` is not a preference, it is which tool you are replacing.** On `java-utils` the two
 rules disagree about **six of the twenty** modules, proved by running both:
@@ -118,10 +172,11 @@ exist` and zero class files, so the resolved list is load bearing rather than de
   by what a registry holds at the moment it is read and daukle pins.
 - **Classifiers and non-jar types**, dropped. None appears in the closure measured.
 - **Gradle module metadata.** Gradle prefers `.module` files over POMs and can select different
-  artifacts. It changed nothing for these twenty, which is measured and not assumed, and it is the
-  likeliest source of the first disagreement on some other project.
-- **Test scopes.** `testClasspath` needs a second resolve with `test` in the transitive set; the
-  closure for `testRuntimeClasspath` is 29 artifacts against the compile side's 20.
+  artifacts. It changed nothing for these twenty, which is measured and not assumed, and **the
+  test closure is where it first showed up**: see `apiguardian-api` above. The prediction that this
+  would be the first source of disagreement held.
+- **Two test classpaths.** Gradle has a test compile one and a test runtime one; this has one, and
+  it equals Gradle's compile one. The difference is annotation jars.
 
 ## Two things the sandbox decided
 

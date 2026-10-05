@@ -1,0 +1,4 @@
+org.slf4j:slf4j-api:1.7.36
+test com.github.codemonstur:embedded-redis:1.4.3
+test redis.clients:jedis:3.8.0
+test org.apache.commons:commons-pool2:2.11.1

@@ -38,8 +38,33 @@ Against `intisy/libs/java-utils`, a real library:
 | POM fetches | 63 |
 | `java:compile` against the result | **39 class files, equal to Gradle's 39** |
 | downloads during that compile | **0** |
+| declared test coordinates | 2 |
+| test closure | **30 modules**, against Gradle's 29 on `testRuntimeClasspath` |
+| `java:test` against the result | **4 containers, 6 tests, 6 successful**, equal to Gradle's |
 
-Eight coordinates in, a compiled library out, **with no Gradle anywhere in the chain**.
+Eight coordinates in, a compiled library out, **with no Gradle anywhere in the chain**. Two more
+in, a green test run out.
+
+## Test dependencies
+
+`testCoordinates` is the test-only half, and it resolves a **second, independent closure** rather
+than bolting extras onto the first. Its roots are the compile coordinates plus the test ones,
+because a test builds against the project's own dependencies too.
+
+```toml
+[toolchains.maven]
+coordinates     = ["org.slf4j:slf4j-api:1.7.36"]
+testCoordinates = ["org.assertj:assertj-core:3.25.3"]
+```
+
+The generated file gains a `testClasspath` block holding **only what the compile closure does not
+already carry**, because a toolchain reaches a test through `classpath` and then `testClasspath`
+and a module in both would be placed twice.
+
+**A module the two closures resolve to different versions is refused by name**, with both versions
+in the message. The compile entry comes first and would silently win, so the tests would run
+against a version neither closure chose. Raise it in `coordinates`, or drop the test coordinate
+that pulls the other one.
 
 ## Why `strategy` exists and is not a preference
 
@@ -74,6 +99,10 @@ project has had since `D-30` and the one this plugin had to be designed not to b
 
 Version ranges and snapshots are **refused by name, with the reason**, because both are decided by
 whatever a registry holds at the moment it is read. Classifiers and non-jar types are dropped.
-Gradle module metadata is not read: Gradle prefers `.module` files over POMs and can select
-different artifacts from them, which changed nothing for the twenty measured and is the likeliest
-source of the first disagreement somewhere else.
+
+**Gradle module metadata is not read, and the test closure is where that first showed up.** Gradle
+prefers a `.module` file over a POM and can select different artifacts from it. It changed nothing
+for the twenty compile modules; on the test side it is `org.apiguardian:apiguardian-api`, which
+`junit-platform-commons`' POM declares at `compile` scope while its `.module` lists it under
+`apiElements` and not `runtimeElements`. A POM cannot express that split, so daukle's test closure
+matches Gradle's test COMPILE classpath and is one jar larger than its test runtime one.

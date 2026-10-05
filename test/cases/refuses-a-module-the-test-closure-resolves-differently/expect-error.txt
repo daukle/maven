@@ -1,0 +1,1 @@
+org.slf4j:slf4j-api at 1.7.25 for the compile closure and 1.7.30 for the test one
