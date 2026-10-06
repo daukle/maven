@@ -50,7 +50,8 @@ run_case() {
   rm -rf "$sandbox"
   mkdir -p "$(dirname "$sandbox")"
   cp -R "$case_dir" "$sandbox"
-  rm -rf "$sandbox/expected" "$sandbox/expect-error.txt" "$sandbox/needs-central"
+  rm -rf "$sandbox/expected" "$sandbox/expect-error.txt" "$sandbox/needs-central" \
+         "$sandbox/then" "$sandbox/then.lua"
   mkdir -p "$sandbox/plugins"
   cp "$root/plugin.lua" "$sandbox/plugins/plugin.lua"
   cp -R "$root/lib" "$sandbox/plugins/lib"
@@ -112,6 +113,42 @@ run_case() {
     fail "$name" "the generated $wanted_name differs"
     return
   fi
+
+  # A case may run a SECOND command over the file the first one wrote, which is
+  # the only way to prove the generated Lua runs rather than merely reads right.
+  # A text-only assertion passes happily on a file daukle would refuse to load.
+  if [ -f "$case_dir/then" ]; then
+    # Installed only now, because daukle.include of a file that does not exist
+    # yet is a hard error: a project cannot carry the include before its first
+    # maven:resolve, and neither can a case.
+    [ -f "$case_dir/then.lua" ] && cp "$case_dir/then.lua" "$sandbox/daukle.lua"
+    # shellcheck disable=SC2086
+    set -- $(cat "$case_dir/then")
+    if ! (cd "$sandbox" && "$daukle" "$@" >then.txt 2>then-stderr.txt); then
+      echo "--- stderr ---" >&2
+      cat "$sandbox/then-stderr.txt" >&2
+      fail "$name" "the second command failed"
+      return
+    fi
+    # Every clause is "<count> <text>" and the count is EXACT. "at least one"
+    # is too weak here: `config print` echoes the manifest back, so a clause
+    # naming a key the manifest also names matches the INPUT and passes while
+    # the generated file produced nothing. That is not hypothetical; it is how
+    # the first version of these two cases was written.
+    while IFS= read -r clause; do
+      [ -n "$clause" ] || continue
+      wanted=${clause%% *}
+      text=${clause#* }
+      seen=$(grep -cF "$text" "$sandbox/then.txt" || true)
+      if [ "$seen" != "$wanted" ]; then
+        echo "--- then.txt ---" >&2
+        cat "$sandbox/then.txt" >&2
+        fail "$name" "expected $wanted of \"$text\" in the second command's output, saw $seen"
+        return
+      fi
+    done < "$case_dir/expected/then.txt"
+  fi
+
   passed=$((passed + 1))
 }
 

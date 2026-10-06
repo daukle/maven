@@ -1,0 +1,14 @@
+schema = 1
+project = "daukle/maven-test"
+version = "1.0.0"
+
+[modules]
+
+[plugins]
+maven = "./plugins"
+
+[toolchains.maven]
+coordinates = ["org.slf4j:slf4j-api:1.7.36"]
+
+[[toolchains.maven.resolve]]
+coordinates = ["org.junit:junit-bom:5.10.1"]

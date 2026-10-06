@@ -34,11 +34,33 @@ daukle.include("daukle/maven/classpath.lua")
 
 | key | meaning |
 | --- | --- |
-| `coordinates` | required, a list of `group:artifact:version` |
+| `coordinates` | a list of `group:artifact:version`, required unless `resolve` supplies a closure |
 | `testCoordinates` | optional, the test-only ones |
 | `strategy` | `"highest"` (Gradle's rule, the default) or `"nearest"` (Maven's) |
 | `repository` | defaults to Maven Central |
 | `for` | which toolchain the generated blocks name, default `"java"` |
+| `resolve` | optional, a list of independent closures, each with its own repository and key |
+
+## A second repository, and a second key
+
+One repository is enough until a project needs two. A Gradle build applies plugins from the Plugin
+Portal and compiles against Central, and Central answers 404 for a plugin marker. Each
+`[[toolchains.maven.resolve]]` entry is an independent closure with its own `repository` and its
+own `into`, which names the toolchain key its pins are appended to:
+
+```toml
+[toolchains.maven]
+for = "gradle"
+coordinates = ["org.slf4j:slf4j-api:1.7.36"]
+
+[[toolchains.maven.resolve]]
+repository = "https://plugins.gradle.org/m2"
+coordinates = ["io.github.intisy.github-gradle:io.github.intisy.github-gradle.gradle.plugin:1.8.2.1"]
+into = "pluginClasspath"
+```
+
+`into` has no default: a closure that lands on a key nothing reads downloads everything and
+changes nothing. Two resolutions appending to one key of one toolchain are refused by name.
 
 ## `strategy` is not a preference
 

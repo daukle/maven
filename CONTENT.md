@@ -66,6 +66,35 @@ in the message. The compile entry comes first and would silently win, so the tes
 against a version neither closure chose. Raise it in `coordinates`, or drop the test coordinate
 that pulls the other one.
 
+## More than one repository, and more than one key
+
+A Gradle build applies plugins from the Plugin Portal and compiles against Central, and the two
+serve different sets: Central answers **404** for a plugin marker the Portal serves. So one
+`repository` is not always enough, and the second closure does not belong on the same classpath
+as the first either.
+
+```toml
+[toolchains.maven]
+for = "gradle"
+coordinates = ["org.slf4j:slf4j-api:1.7.36"]
+
+[[toolchains.maven.resolve]]
+repository = "https://plugins.gradle.org/m2"
+coordinates = ["io.github.intisy.github-gradle:io.github.intisy.github-gradle.gradle.plugin:1.8.2.1"]
+into = "pluginClasspath"
+```
+
+Each `[[toolchains.maven.resolve]]` is an **independent** closure with its own `repository`,
+`strategy` and `for`, each defaulting to the block's, and an `into` that names the toolchain key
+its pins are appended to. **`into` has no default**, because a closure that lands on a key nothing
+reads downloads everything and changes nothing. Two resolutions appending to one key of one
+toolchain are refused by name, for the same reason the compile and test closures may not disagree:
+the list would be read in the order it was written and nothing would report it.
+
+`testCoordinates` is not one of these and cannot be written as one. Its roots are the compile
+coordinates plus its own, which ties it to the primary closure; a `resolve` entry is tied to
+nothing.
+
 ## Why `strategy` exists and is not a preference
 
 Gradle settles a version conflict by taking the **highest** version. Maven takes the **nearest**.
