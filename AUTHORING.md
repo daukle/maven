@@ -148,6 +148,12 @@ when it reaches ordinary libraries, and this plugin needs no per-closure reposit
 **One repository means one session**, so two resolutions against the same repository share every
 POM they both reach rather than fetching it twice.
 
+**A project using `resolve` must declare `daukle/maven@^1.1`.** This plugin does not reject unknown
+keys, so **`1.0.1` ignores the whole list in silence** and writes a classpath missing every
+resolution but the first: measured 2026-10-06 against both published releases, the same project
+giving two closures on `1.1.0` and one on `1.0.1`, with no diagnostic. Nothing a later release can
+do makes an earlier one loud, so the version constraint is the guard.
+
 **`daukle.include` of a file that does not exist yet is a hard error**, measured 2026-10-06. A
 project therefore cannot carry the include before its first `maven:resolve`: run the task, then
 add the line. A `<name>.lua` beside a `<name>.toml` is **not** read either, only `daukle.lua`
