@@ -91,11 +91,67 @@ unpinned fetch is the one acquisition in daukle that does not verify what it got
 
 | key | meaning |
 | --- | --- |
-| `coordinates` | required, a list of `group:artifact:version` |
+| `coordinates` | a list of `group:artifact:version`. Required unless a `resolve` entry supplies a closure instead |
 | `testCoordinates` | optional, the test-only ones. A second closure and a `testClasspath` block |
 | `strategy` | `"highest"` (default, Gradle's rule) or `"nearest"` (Maven's) |
 | `repository` | defaults to Maven Central |
 | `for` | which toolchain the generated blocks name, default `"java"` |
+| `resolve` | optional, a list of **independent** closures. See below |
+
+## More than one closure, and why `resolve` is not how `testCoordinates` is spelled
+
+A project needs more than one closure as soon as it needs more than one REPOSITORY. The measured
+case is Gradle: the plugins a build applies live on the Plugin Portal and the dependencies it
+compiles against live on Central, and the two are genuinely different sets. Measured 2026-10-06:
+Central answers **404** for `io.github.intisy.github-gradle`'s plugin marker where the Portal
+serves it, so one `repository` could not have served both.
+
+Each `[[toolchains.maven.resolve]]` entry is one independent closure:
+
+```toml
+[toolchains.maven]
+for = "gradle"
+coordinates = ["org.slf4j:slf4j-api:1.7.36"]
+
+[[toolchains.maven.resolve]]
+repository = "https://plugins.gradle.org/m2"
+coordinates = ["io.github.intisy.github-gradle:io.github.intisy.github-gradle.gradle.plugin:1.8.2.1"]
+into = "pluginClasspath"
+```
+
+| key | meaning |
+| --- | --- |
+| `coordinates` | required |
+| `into` | required, the toolchain key the pins are appended to. **No default** |
+| `repository` | defaults to the block's |
+| `strategy` | defaults to the block's |
+| `for` | defaults to the block's |
+
+**`into` has no default on purpose.** A closure that lands on a key nothing reads resolves,
+downloads and changes nothing, which is the most expensive kind of silence.
+
+**Two resolutions that append to one key of one toolchain are refused by name.** Both lists would
+be read in whatever order they were written and a module they disagree about would resolve to
+whichever came first. It is `refuse_shadowed`'s failure one level up, so it is refused the same
+way rather than merged.
+
+**`testCoordinates` is NOT a `resolve` entry and cannot be written as one.** Its roots are the
+compile coordinates plus its own, and the pair is refused when the two disagree, so it is tied to
+the primary closure. A `resolve` entry is independent of everything else in the block: the plugin
+classpath shares no module with the classpath the project compiles against. That is why the
+primary closure stayed where it was rather than becoming the list's first element.
+
+**The Plugin Portal mirrors Central**, measured the same day: `slf4j-api` and `junit-bom` are both
+served by `plugins.gradle.org/m2`. So a plugin's own closure resolves from one repository even
+when it reaches ordinary libraries, and this plugin needs no per-closure repository LIST.
+
+**One repository means one session**, so two resolutions against the same repository share every
+POM they both reach rather than fetching it twice.
+
+**`daukle.include` of a file that does not exist yet is a hard error**, measured 2026-10-06. A
+project therefore cannot carry the include before its first `maven:resolve`: run the task, then
+add the line. A `<name>.lua` beside a `<name>.toml` is **not** read either, only `daukle.lua`
+beside `daukle.toml`.
 
 ## The test closure
 
@@ -168,6 +224,16 @@ would be caught by "does it resolve".
 | expand every sighting rather than the winner (`effective = item.version`) | 20 modules, exit 0, **`commons-codec` 1.13 where Gradle gives 1.11** |
 | stop after one sweep rather than at a fixed point | the same wrong answer |
 | make `publishes_a_jar` return true for everything | `junit-bom-5.10.1.jar returned status 404`, and the whole task fails |
+| make `refuse_repeated_keys` return immediately | `refuses-two-resolutions-that-append-to-one-key` gets a success where it wanted a failure |
+| have a resolution ignore its own `repository` | the second closure resolves from Central and its generated urls change |
+| land every block on the first target | the two-target file collapses into one scope |
+
+**A fourth mutation is why the suite has a SECOND STEP.** Ignore `into` so every closure lands on
+`classpath`, then regenerate the text expectation from that run: the diff passes, because the
+expectation now encodes the bug. Only the second step fails, and only because its clauses are
+EXACT COUNTS. The first version of those clauses asked for "at least one `pluginClasspath`" and
+passed on the broken run, because `config print` echoes the manifest back and the manifest names
+`into = "pluginClasspath"` itself. **The clause was matching the input.**
 
 Restoring either gives 20 of 20 again. **The negative control is at the other end**: deleting the
 `slf4j-api` block from the generated classpath and recompiling gives `package org.slf4j does not

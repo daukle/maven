@@ -6,10 +6,10 @@
 --   daukle.include("daukle/maven/classpath.lua")
 
 do
-  local toolchain = daukle.config.toolchains and daukle.config.toolchains.java
+  local toolchain = daukle.config.toolchains and daukle.config.toolchains.demo
   if toolchain == nil then
-    error('daukle.config.toolchains.java does not exist: maven resolved for "'
-          .. 'java" but the manifest declares no such toolchain', 0)
+    error('daukle.config.toolchains.demo does not exist: maven resolved for "'
+          .. 'demo" but the manifest declares no such toolchain', 0)
   end
 
   local classpath = toolchain.classpath or {}
@@ -21,16 +21,22 @@ do
   }
 
   toolchain.classpath = classpath
+end
 
-  -- The TEST-ONLY half. daukle/java puts classpath before testClasspath,
-  -- so a module the compile closure already carries is not repeated here.
-  local testClasspath = toolchain.testClasspath or {}
+do
+  local toolchain = daukle.config.toolchains and daukle.config.toolchains.other
+  if toolchain == nil then
+    error('daukle.config.toolchains.other does not exist: maven resolved for "'
+          .. 'other" but the manifest declares no such toolchain', 0)
+  end
 
-  testClasspath[#testClasspath + 1] = {
+  local classpath = toolchain.classpath or {}
+
+  classpath[#classpath + 1] = {
     url = "https://repo1.maven.org/maven2/org/opentest4j/opentest4j/1.3.0/opentest4j-1.3.0.jar",
     sha256 = "48e2df636cab6563ced64dcdff8abb2355627cb236ef0bf37598682ddf742f1b",
     as = "opentest4j 1.3.0",
   }
 
-  toolchain.testClasspath = testClasspath
+  toolchain.classpath = classpath
 end

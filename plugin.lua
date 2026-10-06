@@ -28,8 +28,8 @@ local function config_of(context)
   return context.toolchain ~= nil and context.toolchain.config or context.config
 end
 
-local function strategy_of(config)
-  local strategy = config.strategy or DEFAULT_STRATEGY
+local function strategy_of(config, fallback)
+  local strategy = config.strategy or fallback or DEFAULT_STRATEGY
   if strategy ~= "highest" and strategy ~= "nearest" then
     error('"strategy" must be "highest", which is how Gradle resolves a version conflict, or'
           .. ' "nearest", which is how Maven does; not "' .. tostring(strategy) .. '"', 0)
@@ -37,8 +37,8 @@ local function strategy_of(config)
   return strategy
 end
 
-local function repository_of(config)
-  local repository = config.repository or pom.CENTRAL
+local function repository_of(config, fallback)
+  local repository = config.repository or fallback or pom.CENTRAL
   if type(repository) ~= "string" then
     error('"repository" must be a url string, not a ' .. type(repository), 0)
   end
@@ -69,24 +69,30 @@ local function parse_coordinate(text, index, key)
   return { group = group, artifact = artifact, version = version }
 end
 
-local function declared_of(config)
-  local listed = config.coordinates
-  if listed == nil then
-    error('a maven toolchain needs "coordinates": there is nothing to resolve without at least'
-          .. ' one "group:artifact:version"', 0)
-  end
+local function parse_coordinates(listed, key)
   if type(listed) ~= "table" then
-    error('"coordinates" must be a list of "group:artifact:version" strings, not a '
+    error('"' .. key .. '" must be a list of "group:artifact:version" strings, not a '
           .. type(listed), 0)
   end
   local declared = {}
   for index = 1, #listed do
-    declared[index] = parse_coordinate(listed[index], index, "coordinates")
+    declared[index] = parse_coordinate(listed[index], index, key)
   end
   if #declared == 0 then
-    error('"coordinates" is empty: there is nothing to resolve', 0)
+    error('"' .. key .. '" is empty: there is nothing to resolve', 0)
   end
   return declared
+end
+
+--- The roots of the primary closure, or nil when the block declares none.
+---
+--- @implNote nil is only legal when a `resolve` entry supplies a closure
+--- instead, which is why the absence is reported by the caller rather than
+--- here: a block with neither is the real error and this function cannot see
+--- the other half.
+local function declared_of(config)
+  if config.coordinates == nil then return nil end
+  return parse_coordinates(config.coordinates, "coordinates")
 end
 
 --- The roots of the TEST closure, or nil when the project declares none.
@@ -114,6 +120,110 @@ local function test_declared_of(config, declared)
     roots[#roots + 1] = parse_coordinate(listed[index], index, "testCoordinates")
   end
   return roots
+end
+
+--- The key a resolution's pins are appended to, refused unless the generated
+--- file could assign to it.
+local function into_of(entry, index)
+  local at = "resolve[" .. index .. '].into'
+  local into = entry.into
+  if into == nil then
+    error(at .. ' is missing: a resolution has to name the toolchain key its pins are appended'
+          .. ' to. There is no default, because a closure that lands on a key nothing reads'
+          .. ' builds and resolves and changes nothing', 0)
+  end
+  if type(into) ~= "string" then
+    error(at .. " must be a string, not a " .. type(into), 0)
+  end
+  if into:find("^[%a_][%w_]*$") == nil then
+    error(at .. ' "' .. into .. '" is not a plain key name. The generated file assigns'
+          .. ' toolchain.<key>, so it must be a letter or underscore followed by letters,'
+          .. ' digits or underscores', 0)
+  end
+  return into
+end
+
+--[[ Two resolutions appending to one key of one toolchain would interleave two
+     closures in a list whose ORDER decides which version of a shared module is
+     seen first, and nothing downstream could tell them apart. It is the same
+     failure refuse_shadowed names for the compile and test pair, one level up,
+     so it is refused the same way rather than merged. ]]
+local function refuse_repeated_keys(resolutions)
+  local seen = {}
+  for index = 1, #resolutions do
+    local resolution = resolutions[index]
+    for _, into in ipairs({ resolution.into, resolution.testInto }) do
+      if into ~= nil then
+        local at = resolution.target .. "." .. into
+        if seen[at] ~= nil then
+          error("two resolutions both append to " .. at .. ', so one closure would be read'
+                .. ' before the other and a module they disagree about would resolve to'
+                .. ' whichever came first. Give one of them its own "into", or merge their'
+                .. ' coordinates into a single resolution', 0)
+        end
+        seen[at] = true
+      end
+    end
+  end
+end
+
+--- Every independent resolution this block declares, the primary one first.
+---
+--- @implNote the primary closure is NOT an entry of `resolve` and cannot be
+--- written as one. Its test half takes the compile coordinates as its own
+--- roots and is refused when the two disagree, which ties the pair together;
+--- a `resolve` entry is independent of everything else here. The buildscript
+--- classpath a Gradle plugin is applied from is the measured case: it shares
+--- no module with the classpath the project compiles against, and it comes
+--- from a different repository.
+local function resolutions_of(config)
+  local repository = repository_of(config)
+  local strategy = strategy_of(config)
+  local target = config["for"] or "java"
+  local declared = declared_of(config)
+  local resolutions = {}
+
+  if declared ~= nil then
+    local test_roots = test_declared_of(config, declared)
+    resolutions[1] = {
+      primary = true,
+      repository = repository, strategy = strategy, target = target,
+      into = "classpath", testInto = test_roots ~= nil and "testClasspath" or nil,
+      roots = declared, testRoots = test_roots,
+    }
+  elseif config.testCoordinates ~= nil then
+    error('"testCoordinates" needs "coordinates": a test closure resolves the compile'
+          .. ' coordinates as well as its own, so there is no test half without a compile half',
+          0)
+  end
+
+  local listed = config.resolve
+  if listed ~= nil then
+    if type(listed) ~= "table" or #listed == 0 then
+      error('"resolve" must be a list of resolutions, each a [[toolchains.maven.resolve]] table'
+            .. ' naming its own "coordinates" and the "into" key they are appended to', 0)
+    end
+    for index = 1, #listed do
+      local entry = listed[index]
+      if type(entry) ~= "table" then
+        error("resolve[" .. index .. "] must be a table, not a " .. type(entry), 0)
+      end
+      resolutions[#resolutions + 1] = {
+        repository = repository_of(entry, repository),
+        strategy = strategy_of(entry, strategy),
+        target = entry["for"] or target,
+        into = into_of(entry, index),
+        roots = parse_coordinates(entry.coordinates, "resolve[" .. index .. "].coordinates"),
+      }
+    end
+  end
+
+  if #resolutions == 0 then
+    error('a maven toolchain needs "coordinates": there is nothing to resolve without at least'
+          .. ' one "group:artifact:version"', 0)
+  end
+  refuse_repeated_keys(resolutions)
+  return resolutions
 end
 
 local function key_of(module)
@@ -152,21 +262,16 @@ local function refuse_shadowed(compile_versions, test_resolved)
         0)
 end
 
---- Both closures, with the test one carrying only what the compile one lacks.
---- The second return is nil when the project declares no test coordinates.
-local function closures(config, session)
-  local strategy = strategy_of(config)
-  local declared = declared_of(config)
-  -- Every refusal this plugin makes about a coordinate is made before the
-  -- first POM is fetched, so bad input costs no network at all.
-  local test_roots = test_declared_of(config, declared)
-
-  local compiled, rounds = graph.resolve(session, declared, strategy)
+--- One resolution's modules: its own closure, and the test-only half when it
+--- carries test roots. The second return is nil when it does not.
+local function closures(resolution, session)
+  local strategy = resolution.strategy
+  local compiled, rounds = graph.resolve(session, resolution.roots, strategy)
   local unversioned = session.unversioned
-  if test_roots == nil then return compiled, nil, rounds, unversioned end
+  if resolution.testRoots == nil then return compiled, nil, rounds, unversioned end
 
   local compile_versions = versions_of(compiled)
-  local tested = graph.resolve(session, test_roots, strategy)
+  local tested = graph.resolve(session, resolution.testRoots, strategy)
   refuse_shadowed(compile_versions, tested)
 
   local extra = {}
@@ -179,13 +284,24 @@ local function closures(config, session)
   return compiled, extra, rounds, unversioned
 end
 
+--- One session per repository, so two resolutions against the same one share
+--- every POM they both reach.
+local function sessions_of()
+  local sessions = {}
+  return function(repository)
+    local session = sessions[repository]
+    if session == nil then
+      session = pom.session(repository)
+      sessions[repository] = session
+    end
+    return session
+  end
+end
+
 daukle.toolchain{
   name = "maven",
   generate = function(context)
-    local config = config_of(context)
-    test_declared_of(config, declared_of(config))
-    strategy_of(config)
-    repository_of(config)
+    resolutions_of(config_of(context))
     return {}
   end,
 }
@@ -201,19 +317,44 @@ end
      is ever asked to edit, and the user's manifest keeps only what the user
      wrote. It APPENDS rather than assigns, so a hand-written classpath entry
      in daukle.toml survives beside the resolved ones. ]]
-local function append_block(lines, name, entries)
-  lines[#lines + 1] = "local " .. name .. " = toolchain." .. name .. " or {}"
+local function append_block(lines, block)
+  local name = block.name
+  if block.note ~= nil then
+    for index = 1, #block.note do lines[#lines + 1] = "  -- " .. block.note[index] end
+  end
+  lines[#lines + 1] = "  local " .. name .. " = toolchain." .. name .. " or {}"
   lines[#lines + 1] = ""
-  for index = 1, #entries do
-    local entry = entries[index]
-    lines[#lines + 1] = name .. "[#" .. name .. " + 1] = {"
-    lines[#lines + 1] = "  url = " .. quote(entry.url) .. ","
-    lines[#lines + 1] = "  sha256 = " .. quote(entry.sha256) .. ","
-    lines[#lines + 1] = "  as = " .. quote(entry.artifact .. " " .. entry.version) .. ","
-    lines[#lines + 1] = "}"
+  for index = 1, #block.entries do
+    local entry = block.entries[index]
+    lines[#lines + 1] = "  " .. name .. "[#" .. name .. " + 1] = {"
+    lines[#lines + 1] = "    url = " .. quote(entry.url) .. ","
+    lines[#lines + 1] = "    sha256 = " .. quote(entry.sha256) .. ","
+    lines[#lines + 1] = "    as = " .. quote(entry.artifact .. " " .. entry.version) .. ","
+    lines[#lines + 1] = "  }"
   end
   lines[#lines + 1] = ""
-  lines[#lines + 1] = "toolchain." .. name .. " = " .. name
+  lines[#lines + 1] = "  toolchain." .. name .. " = " .. name
+  lines[#lines + 1] = ""
+end
+
+--[[ One scope per target toolchain, with no special case for there being only
+     one. A renderer that modelled exactly one target is the shape D-111 found
+     wrong everywhere else in this org, and the cost of the uniform form is one
+     indent in a file nobody edits by hand. ]]
+local function append_target(lines, group)
+  local key = group.target
+  lines[#lines + 1] = "do"
+  lines[#lines + 1] = "  local toolchain = daukle.config.toolchains and daukle.config.toolchains."
+                      .. key
+  lines[#lines + 1] = "  if toolchain == nil then"
+  lines[#lines + 1] = "    error('daukle.config.toolchains." .. key .. " does not exist: maven"
+                      .. " resolved for \"'"
+  lines[#lines + 1] = "          .. '" .. key .. "\" but the manifest declares no such"
+                      .. " toolchain', 0)"
+  lines[#lines + 1] = "  end"
+  lines[#lines + 1] = ""
+  for index = 1, #group.blocks do append_block(lines, group.blocks[index]) end
+  lines[#lines] = "end"
   lines[#lines + 1] = ""
 end
 
@@ -223,7 +364,7 @@ local function publishes_a_jar(session, module)
   return pom.load(session, module.group, module.artifact, module.version).packaging ~= "pom"
 end
 
-local function render(entries, test_entries, key)
+local function render(groups)
   local lines = {
     "-- Generated by maven:resolve. Do not edit: daukle.toml is yours, this is not.",
     "-- Every url and sha256 here was fetched and hashed, because Maven Central",
@@ -232,39 +373,45 @@ local function render(entries, test_entries, key)
     "-- Include it from daukle.lua:",
     "--   daukle.include(\"daukle/maven/" .. OUTPUT .. "\")",
     "",
-    "local toolchain = daukle.config.toolchains and daukle.config.toolchains." .. key,
-    "if toolchain == nil then",
-    "  error('daukle.config.toolchains." .. key .. " does not exist: maven resolved for \"'",
-    "        .. '" .. key .. "\" but the manifest declares no such toolchain', 0)",
-    "end",
-    "",
   }
-  append_block(lines, "classpath", entries)
-  --[[ Only what the compile closure lacks, because daukle/java reaches a test
-       through "classpath" followed by "testClasspath" and a module written to
-       both would be acquired and placed twice. The versions are known equal
-       wherever the two closures overlap, because refuse_shadowed has already
-       failed the run otherwise. ]]
-  if test_entries ~= nil then
-    lines[#lines + 1] = "-- The TEST-ONLY half. daukle/java puts classpath before testClasspath,"
-    lines[#lines + 1] = "-- so a module the compile closure already carries is not repeated here."
-    append_block(lines, "testClasspath", test_entries)
-  end
+  for index = 1, #groups do append_target(lines, groups[index]) end
   return table.concat(lines, "\n")
+end
+
+--[[ Only what the compile closure lacks, because daukle/java reaches a test
+     through "classpath" followed by "testClasspath" and a module written to
+     both would be acquired and placed twice. The versions are known equal
+     wherever the two closures overlap, because refuse_shadowed has already
+     failed the run otherwise. ]]
+local TEST_NOTE = {
+  "The TEST-ONLY half. daukle/java puts classpath before testClasspath,",
+  "so a module the compile closure already carries is not repeated here.",
+}
+
+--- The targets in declaration order, each carrying the blocks resolved for it.
+local function grouped_by_target()
+  local groups, order = {}, {}
+  return order, function(target, block)
+    local group = groups[target]
+    if group == nil then
+      group = { target = target, blocks = {} }
+      groups[target] = group
+      order[#order + 1] = group
+    end
+    group.blocks[#group.blocks + 1] = block
+  end
 end
 
 daukle.task{
   name = "maven:resolve",
   run = function(context)
-    local config = config_of(context)
-    local session = pom.session(repository_of(config))
-    local resolved, tested = closures(config, session)
+    local resolutions = resolutions_of(config_of(context))
+    local session_for = sessions_of()
 
     --[[ The one unpinned fetch in the system, and the reason this task needs
          --resolve. What comes back is the digest core computed while writing
          the file, which is exactly the pin daukle.artifact wants. ]]
-    local function pinned_entries(modules)
-      if modules == nil then return nil end
+    local function pinned_entries(session, modules)
       local entries = {}
       for index = 1, #modules do
         local module = modules[index]
@@ -286,16 +433,23 @@ daukle.task{
       return entries
     end
 
-    local entries = pinned_entries(resolved)
-    local test_entries = pinned_entries(tested)
+    local groups, add = grouped_by_target()
+    for index = 1, #resolutions do
+      local resolution = resolutions[index]
+      local session = session_for(resolution.repository)
+      local resolved, tested = closures(resolution, session)
+      add(resolution.target, { name = resolution.into, entries = pinned_entries(session, resolved) })
+      if tested ~= nil then
+        add(resolution.target, { name = resolution.testInto, note = TEST_NOTE,
+                                 entries = pinned_entries(session, tested) })
+      end
+    end
 
-    local into = config["for"] or "java"
     --[[ committed, because a clone has to build without resolving again: an
          ordinary build may not fetch anything unpinned, so the pins have to be
          in the project's history. It lands in daukle/maven/ rather than
          build/daukle/maven/, which daukle clean deletes. ]]
-    local path = daukle.write{ path = OUTPUT, text = render(entries, test_entries, into),
-                               committed = true }
+    local path = daukle.write{ path = OUTPUT, text = render(groups), committed = true }
     --[[ A plugin has no way to print, so the file IS the report. Raising here
          would fail the task, so the count reaches the user through the
          acquisition report daukle.pin already writes: one line per artifact,
@@ -310,36 +464,47 @@ daukle.task{
 daukle.task{
   name = "maven:list",
   run = function(context)
-    local config = config_of(context)
-    local session = pom.session(repository_of(config))
-    local resolved, tested, rounds, unversioned = closures(config, session)
+    local resolutions = resolutions_of(config_of(context))
+    local session_for = sessions_of()
+    local lines, skipped = {}, {}
 
-    local lines = {
-      "# " .. #resolved .. " modules, " .. rounds .. " rounds, " .. session.fetches
-      .. " POM fetches",
-      "",
-    }
-    for index = 1, #resolved do
-      local module = resolved[index]
-      lines[#lines + 1] = module.group .. ":" .. module.artifact .. ":" .. module.version
-    end
-    --[[ The test-only modules carry a prefix rather than a heading, because a
-         heading is a comment and the suite compares the file with the comments
-         stripped and the lines sorted, so a module's half would not survive. ]]
-    if tested ~= nil then
-      lines[#lines + 1] = ""
-      lines[#lines + 1] = "# " .. #tested .. " more for the test closure"
-      for index = 1, #tested do
-        local module = tested[index]
-        lines[#lines + 1] = "test " .. module.group .. ":" .. module.artifact .. ":"
+    --[[ A module carries the name of the key it is destined for, as a PREFIX
+         rather than under a heading: a heading is a comment, and the suite
+         compares this file with the comments stripped and the lines sorted, so
+         a closure's half would not survive one. The PRIMARY closure is bare,
+         because it was bare before there was more than one resolution and a
+         generated line that moves is a diff nobody asked for. ]]
+    local function append_modules(modules, prefix)
+      for index = 1, #modules do
+        local module = modules[index]
+        lines[#lines + 1] = prefix .. module.group .. ":" .. module.artifact .. ":"
                             .. module.version
       end
     end
-    if #unversioned > 0 then
+
+    for index = 1, #resolutions do
+      local resolution = resolutions[index]
+      local session = session_for(resolution.repository)
+      local resolved, tested, rounds, unversioned = closures(resolution, session)
+      if #lines > 0 then lines[#lines + 1] = "" end
+      lines[#lines + 1] = "# " .. #resolved .. " modules for " .. resolution.target .. "."
+                          .. resolution.into .. ", " .. rounds .. " rounds, " .. session.fetches
+                          .. " POM fetches"
+      lines[#lines + 1] = ""
+      append_modules(resolved, resolution.primary and "" or resolution.into .. " ")
+      if tested ~= nil then
+        lines[#lines + 1] = ""
+        lines[#lines + 1] = "# " .. #tested .. " more for the test closure"
+        append_modules(tested, "test ")
+      end
+      for position = 1, #unversioned do skipped[#skipped + 1] = unversioned[position] end
+    end
+
+    if #skipped > 0 then
       lines[#lines + 1] = ""
       lines[#lines + 1] = "# dependencies reached with no version, and therefore skipped:"
-      for index = 1, #unversioned do
-        lines[#lines + 1] = "#   " .. unversioned[index]
+      for index = 1, #skipped do
+        lines[#lines + 1] = "#   " .. skipped[index]
       end
     end
     return daukle.write{ path = "resolved.txt", text = table.concat(lines, "\n") .. "\n" }

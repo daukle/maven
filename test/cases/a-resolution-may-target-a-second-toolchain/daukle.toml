@@ -1,0 +1,25 @@
+schema = 1
+project = "daukle/maven-test"
+version = "1.0.0"
+
+[modules]
+
+[plugins]
+maven = "./plugins"
+demo = "./demo"
+
+[toolchains.demo]
+
+[toolchains.other]
+
+# Two targets, so the generated file carries two scopes rather than one. The
+# renderer models N of them with no special case for N being one, which is why
+# a single-target file is wrapped the same way this one is.
+[toolchains.maven]
+for = "demo"
+coordinates = ["org.slf4j:slf4j-api:1.7.36"]
+
+[[toolchains.maven.resolve]]
+for = "other"
+coordinates = ["org.opentest4j:opentest4j:1.3.0"]
+into = "classpath"
