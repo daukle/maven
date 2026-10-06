@@ -2,7 +2,7 @@
 # Every case runs against a real daukle, because what this plugin produces is a
 # resolved closure and a stub of daukle.fetch would be testing the stub.
 #
-# The cases that reach Maven Central carry a "needs-central" marker and are
+# The cases that reach a real repository carry a "needs-central" marker and are
 # skipped unless DAUKLE_MAVEN_E2E=1. CI sets it on every runner: resolution is
 # the whole of what this plugin does, so a run that skipped them proved only
 # that bad input is refused.

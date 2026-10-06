@@ -1,0 +1,4 @@
+# 2 modules, 2 rounds, 3 POM fetches
+
+org.junit:junit-bom:5.10.1
+org.slf4j:slf4j-api:1.7.36

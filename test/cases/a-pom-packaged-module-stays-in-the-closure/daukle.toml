@@ -1,0 +1,14 @@
+schema = 1
+project = "daukle/maven-test"
+version = "1.0.0"
+
+[modules]
+
+[plugins]
+maven = "./plugins"
+
+# A BOM beside an ordinary library: the BOM is pom-packaged and publishes no
+# jar, the library does. A Gradle plugin marker is the same shape and is what
+# found this, but its real artifact is 37 MB and this pair proves the rule.
+[toolchains.maven]
+coordinates = ["org.junit:junit-bom:5.10.1", "org.slf4j:slf4j-api:1.7.36"]
