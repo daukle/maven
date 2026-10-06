@@ -1,0 +1,2 @@
+kind: generic
+description: The Maven resolver for daukle. It turns group:artifact:version coordinates into pinned url and sha256 blocks by walking Maven POMs itself, including the test closure, so a toolchain consumes artifacts daukle verified rather than a coordinate it would have to trust.
