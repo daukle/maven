@@ -167,6 +167,7 @@ would be caught by "does it resolve".
 | --- | --- |
 | expand every sighting rather than the winner (`effective = item.version`) | 20 modules, exit 0, **`commons-codec` 1.13 where Gradle gives 1.11** |
 | stop after one sweep rather than at a fixed point | the same wrong answer |
+| make `publishes_a_jar` return true for everything | `junit-bom-5.10.1.jar returned status 404`, and the whole task fails |
 
 Restoring either gives 20 of 20 again. **The negative control is at the other end**: deleting the
 `slf4j-api` block from the generated classpath and recompiling gives `package org.slf4j does not
@@ -177,7 +178,13 @@ exist` and zero class files, so the resolved list is load bearing rather than de
 - **A lock file.** See above; it is the ask.
 - **Version ranges and snapshots**, both refused by name with the reason, because both are decided
   by what a registry holds at the moment it is read and daukle pins.
-- **Classifiers and non-jar types**, dropped. None appears in the closure measured.
+- **Classifiers and non-jar types**, dropped. None appears in the closure measured. **`pom` is the
+  exception and is modelled**, because it is not a type to drop: a pom-packaged module publishes no
+  jar at all, so it stays in the closure, where what it declares is real, and contributes nothing
+  to the classpath. That is what a BOM is and what a Gradle plugin marker is. **Until 2026-10-06
+  this plugin pinned a jar for every module in a closure**, so `org.junit:junit-bom:5.10.1`
+  declared as a coordinate 404'd and failed the whole resolve, measured against the released
+  `1.0.0`. `war` and `aar` are still unmodelled and would be pinned as jars.
 - **Gradle module metadata.** Gradle prefers `.module` files over POMs and can select different
   artifacts. It changed nothing for these twenty, which is measured and not assumed, and **the
   test closure is where it first showed up**: see `apiguardian-api` above. The prediction that this

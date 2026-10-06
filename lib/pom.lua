@@ -110,6 +110,11 @@ local function collect(session, group, artifact, version, into, depth)
   local root = xml.parse(text)
   if root == nil then return end
 
+  --[[ Read from the requested POM alone, never from a parent: packaging is
+       the one field Maven does not inherit, and a child of a pom-packaged
+       aggregator is an ordinary jar. ]]
+  if depth == 0 then into.packaging = xml.text(root, "packaging") end
+
   -- The parent is folded in FIRST so the child's own values overwrite it,
   -- which is the direction Maven inherits in.
   local parent = xml.child(root, "parent")
@@ -190,6 +195,7 @@ function pom.load(session, group, artifact, version)
 
   local model = pom.empty()
   collect(session, group, artifact, version, model, 0)
+  model.packaging = model.packaging or "jar"
   pom.settle(model)
   session.models[coordinate] = model
   return model
