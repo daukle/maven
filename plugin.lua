@@ -184,12 +184,13 @@ local function resolutions_of(config)
   local resolutions = {}
 
   if declared ~= nil then
+    local test_roots = test_declared_of(config, declared)
     resolutions[1] = {
+      primary = true,
       repository = repository, strategy = strategy, target = target,
-      into = "classpath", testInto = "testClasspath",
-      roots = declared, testRoots = test_declared_of(config, declared),
+      into = "classpath", testInto = test_roots ~= nil and "testClasspath" or nil,
+      roots = declared, testRoots = test_roots,
     }
-    if resolutions[1].testRoots == nil then resolutions[1].testInto = nil end
   elseif config.testCoordinates ~= nil then
     error('"testCoordinates" needs "coordinates": a test closure resolves the compile'
           .. ' coordinates as well as its own, so there is no test half without a compile half',
@@ -197,30 +198,29 @@ local function resolutions_of(config)
   end
 
   local listed = config.resolve
-  if listed == nil then
-    if #resolutions == 0 then
-      error('a maven toolchain needs "coordinates": there is nothing to resolve without at least'
-            .. ' one "group:artifact:version"', 0)
+  if listed ~= nil then
+    if type(listed) ~= "table" or #listed == 0 then
+      error('"resolve" must be a list of resolutions, each a [[toolchains.maven.resolve]] table'
+            .. ' naming its own "coordinates" and the "into" key they are appended to', 0)
     end
-    return resolutions
-  end
-  if type(listed) ~= "table" or #listed == 0 then
-    error('"resolve" must be a list of resolutions, each a [[toolchains.maven.resolve]] table'
-          .. ' naming its own "coordinates" and the "into" key they are appended to', 0)
+    for index = 1, #listed do
+      local entry = listed[index]
+      if type(entry) ~= "table" then
+        error("resolve[" .. index .. "] must be a table, not a " .. type(entry), 0)
+      end
+      resolutions[#resolutions + 1] = {
+        repository = repository_of(entry, repository),
+        strategy = strategy_of(entry, strategy),
+        target = entry["for"] or target,
+        into = into_of(entry, index),
+        roots = parse_coordinates(entry.coordinates, "resolve[" .. index .. "].coordinates"),
+      }
+    end
   end
 
-  for index = 1, #listed do
-    local entry = listed[index]
-    if type(entry) ~= "table" then
-      error("resolve[" .. index .. "] must be a table, not a " .. type(entry), 0)
-    end
-    resolutions[#resolutions + 1] = {
-      repository = repository_of(entry, repository),
-      strategy = strategy_of(entry, strategy),
-      target = entry["for"] or target,
-      into = into_of(entry, index),
-      roots = parse_coordinates(entry.coordinates, "resolve[" .. index .. "].coordinates"),
-    }
+  if #resolutions == 0 then
+    error('a maven toolchain needs "coordinates": there is nothing to resolve without at least'
+          .. ' one "group:artifact:version"', 0)
   end
   refuse_repeated_keys(resolutions)
   return resolutions
@@ -471,10 +471,9 @@ daukle.task{
     --[[ A module carries the name of the key it is destined for, as a PREFIX
          rather than under a heading: a heading is a comment, and the suite
          compares this file with the comments stripped and the lines sorted, so
-         a closure's half would not survive one. The compile half of the
-         primary resolution is bare, because it was bare before there was more
-         than one resolution and a generated line that moves is a diff nobody
-         asked for. ]]
+         a closure's half would not survive one. The PRIMARY closure is bare,
+         because it was bare before there was more than one resolution and a
+         generated line that moves is a diff nobody asked for. ]]
     local function append_modules(modules, prefix)
       for index = 1, #modules do
         local module = modules[index]
@@ -492,7 +491,7 @@ daukle.task{
                           .. resolution.into .. ", " .. rounds .. " rounds, " .. session.fetches
                           .. " POM fetches"
       lines[#lines + 1] = ""
-      append_modules(resolved, index == 1 and "" or resolution.into .. " ")
+      append_modules(resolved, resolution.primary and "" or resolution.into .. " ")
       if tested ~= nil then
         lines[#lines + 1] = ""
         lines[#lines + 1] = "# " .. #tested .. " more for the test closure"
