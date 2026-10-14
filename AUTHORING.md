@@ -258,6 +258,21 @@ Restoring either gives 20 of 20 again. **The negative control is at the other en
 `slf4j-api` block from the generated classpath and recompiling gives `package org.slf4j does not
 exist` and zero class files, so the resolved list is load bearing rather than decorative.
 
+## One version shared by several coordinates
+
+What a Gradle version catalog's `version.ref` does, `daukle.lua` already does: the plugin reads
+the merged config, so coordinates composed there are resolved like any others.
+
+```lua
+local versions = { asm = "9.8" }
+local function asm(artifact) return "org.ow2.asm:" .. artifact .. ":" .. versions.asm end
+daukle.config.toolchains.maven.coordinates = { asm("asm-commons"), asm("asm-util") }
+```
+
+`resolve-shares-one-version-across-coordinates-in-daukle-lua` proves it against Maven Central, and
+fails when the overlay is removed. **There is no declarative spelling**: `daukle.toml` has no
+variables, and nothing here reads a `libs.versions.toml`.
+
 ## What this does not do
 
 - **A lock file.** See above; it is the ask.
