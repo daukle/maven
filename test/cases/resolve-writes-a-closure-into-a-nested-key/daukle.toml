@@ -17,3 +17,7 @@ coordinates = ["org.slf4j:slf4j-api:1.7.36"]
 [[toolchains.maven.resolve]]
 coordinates = ["org.opentest4j:opentest4j:1.3.0"]
 into = ["modules", "tools/core", "classpath"]
+
+[[toolchains.maven.resolve]]
+coordinates = ["org.opentest4j:opentest4j:1.3.0"]
+into = ["builds", "build-logic", "owner"]

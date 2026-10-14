@@ -28,14 +28,31 @@ do
     owner = owner["modules"]
     owner["tools/core"] = owner["tools/core"] or {}
     owner = owner["tools/core"]
-    local classpath = owner.classpath or {}
+    local pins = owner["classpath"] or {}
 
-    classpath[#classpath + 1] = {
+    pins[#pins + 1] = {
       url = "https://repo1.maven.org/maven2/org/opentest4j/opentest4j/1.3.0/opentest4j-1.3.0.jar",
       sha256 = "48e2df636cab6563ced64dcdff8abb2355627cb236ef0bf37598682ddf742f1b",
       as = "opentest4j 1.3.0",
     }
 
-    owner.classpath = classpath
+    owner["classpath"] = pins
+  end
+
+  do
+    local owner = toolchain
+    owner["builds"] = owner["builds"] or {}
+    owner = owner["builds"]
+    owner["build-logic"] = owner["build-logic"] or {}
+    owner = owner["build-logic"]
+    local pins = owner["owner"] or {}
+
+    pins[#pins + 1] = {
+      url = "https://repo1.maven.org/maven2/org/opentest4j/opentest4j/1.3.0/opentest4j-1.3.0.jar",
+      sha256 = "48e2df636cab6563ced64dcdff8abb2355627cb236ef0bf37598682ddf742f1b",
+      as = "opentest4j 1.3.0",
+    }
+
+    owner["owner"] = pins
   end
 end

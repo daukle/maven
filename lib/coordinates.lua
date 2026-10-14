@@ -115,6 +115,24 @@ local function refuse_a_key_that_is_not_plain(key, at)
   end
 end
 
+--[[ A flat key becomes a Lua local of the same name in the generated file, so a
+     keyword would not parse and "toolchain" would shadow the table every later
+     block appends to. A nested key is written as a quoted field instead. ]]
+local NAMES_THE_GENERATED_FILE_USES = {
+  toolchain = true, ["and"] = true, ["break"] = true, ["do"] = true, ["else"] = true,
+  ["elseif"] = true, ["end"] = true, ["false"] = true, ["for"] = true, ["function"] = true,
+  ["goto"] = true, ["if"] = true, ["in"] = true, ["local"] = true, ["nil"] = true,
+  ["not"] = true, ["or"] = true, ["repeat"] = true, ["return"] = true, ["then"] = true,
+  ["true"] = true, ["until"] = true, ["while"] = true,
+}
+
+local function refuse_a_name_the_generated_file_uses(key, at)
+  if NAMES_THE_GENERATED_FILE_USES[key] then
+    error(at .. ' "' .. key .. '" is a Lua keyword or a name the generated file uses itself,'
+          .. ' so it cannot be a key here: write it as a list, ["' .. key .. '"]', 0)
+  end
+end
+
 --- A list `into`, the path from the toolchain's own table to the key appended to.
 ---
 --- @implNote a list rather than a dotted string, because a module name may
@@ -122,6 +140,9 @@ end
 --- error. Only the LAST component is the key the pins land on, so only it must
 --- be a plain name; the others are rendered quoted and may hold a "/".
 local function path_of(into, at)
+  if #into == 0 and next(into) ~= nil then
+    error(at .. " must be a list of keys, not a table of named values", 0)
+  end
   if #into == 0 then
     error(at .. " is an empty list: a path names at least the key the pins land on", 0)
   end
@@ -147,9 +168,10 @@ local function into_of(entry, index)
   end
   if type(into) == "table" then return path_of(into, at) end
   if type(into) ~= "string" then
-    error(at .. " must be a string, not a " .. type(into), 0)
+    error(at .. " must be a string or a list, not a " .. type(into), 0)
   end
   refuse_a_key_that_is_not_plain(into, at)
+  refuse_a_name_the_generated_file_uses(into, at)
   return { into }
 end
 
@@ -162,16 +184,17 @@ local function refuse_repeated_keys(resolutions)
   local seen = {}
   for index = 1, #resolutions do
     local resolution = resolutions[index]
-    for _, into in ipairs({ resolution.into, resolution.testInto }) do
-      if into ~= nil then
-        local at = resolution.target .. "." .. into
-        if seen[at] ~= nil then
+    for _, path in ipairs({ resolution.path, resolution.testPath }) do
+      if path ~= nil then
+        local at = resolution.target .. "." .. table.concat(path, ".")
+        local identity = resolution.target .. "\0" .. table.concat(path, "\0")
+        if seen[identity] ~= nil then
           error("two resolutions both append to " .. at .. ', so one closure would be read'
                 .. ' before the other and a module they disagree about would resolve to'
                 .. ' whichever came first. Give one of them its own "into", or merge their'
                 .. ' coordinates into a single resolution', 0)
         end
-        seen[at] = true
+        seen[identity] = true
       end
     end
   end
