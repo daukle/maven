@@ -62,6 +62,16 @@ into = "pluginClasspath"
 `into` has no default: a closure that lands on a key nothing reads downloads everything and
 changes nothing. Two resolutions appending to one key of one toolchain are refused by name.
 
+To give one module, or one Gradle included build, a classpath of its own, write `into` as the
+path to the key:
+
+```toml
+[[toolchains.maven.resolve]]
+coordinates = ["com.google.code.gson:gson:2.10.1"]
+for = "gradle"
+into = ["modules", "tools/core", "classpath"]
+```
+
 ## `strategy` is not a preference
 
 Gradle settles a version conflict by taking the **highest** version and Maven the **nearest**. On a

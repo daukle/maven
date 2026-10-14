@@ -161,9 +161,9 @@ daukle.task{
       local resolution = resolutions[index]
       local session = session_for(resolution.repository)
       local resolved, tested = closures(resolution, session)
-      add(resolution.target, { name = resolution.into, entries = pinned_entries(session, resolved) })
+      add(resolution.target, { path = resolution.path, entries = pinned_entries(session, resolved) })
       if tested ~= nil then
-        add(resolution.target, { name = resolution.testInto, note = TEST_NOTE,
+        add(resolution.target, { path = resolution.testPath, note = TEST_NOTE,
                                  entries = pinned_entries(session, tested) })
       end
     end

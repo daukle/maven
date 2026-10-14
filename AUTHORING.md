@@ -122,13 +122,26 @@ into = "pluginClasspath"
 | key | meaning |
 | --- | --- |
 | `coordinates` | required |
-| `into` | required, the toolchain key the pins are appended to. **No default** |
+| `into` | required, the toolchain key the pins are appended to, or a list naming the path to it. **No default** |
 | `repository` | defaults to the block's |
 | `strategy` | defaults to the block's |
 | `for` | defaults to the block's |
 
 **`into` has no default on purpose.** A closure that lands on a key nothing reads resolves,
 downloads and changes nothing, which is the most expensive kind of silence.
+
+**`into` may be a list, the path from the toolchain's table to the key**, so a module or an
+included build gets a classpath of its own:
+
+```toml
+[[toolchains.maven.resolve]]
+coordinates = ["com.google.code.gson:gson:2.10.1"]
+into = ["modules", "tools/core", "classpath"]     # or ["builds", "build-logic", "classpath"]
+```
+
+**A list and not a dotted string**, because a module name may hold a `.` and a dotted path would
+split it into a wrong path with no error. Only the last component must be a plain key name; the
+others are written quoted, which is what lets `tools/core` through.
 
 **Two resolutions that append to one key of one toolchain are refused by name.** Both lists would
 be read in whatever order they were written and a module they disagree about would resolve to

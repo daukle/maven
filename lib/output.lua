@@ -11,23 +11,43 @@ end
      is ever asked to edit, and the user's manifest keeps only what the user
      wrote. It APPENDS rather than assigns, so a hand-written classpath entry
      in daukle.toml survives beside the resolved ones. ]]
-local function append_block(lines, block)
-  local name = block.name
+local function append_entries(lines, block, name, field, indent)
   if block.note ~= nil then
-    for index = 1, #block.note do lines[#lines + 1] = "  -- " .. block.note[index] end
+    for index = 1, #block.note do lines[#lines + 1] = indent .. "-- " .. block.note[index] end
   end
-  lines[#lines + 1] = "  local " .. name .. " = toolchain." .. name .. " or {}"
+  lines[#lines + 1] = indent .. "local " .. name .. " = " .. field .. " or {}"
   lines[#lines + 1] = ""
   for index = 1, #block.entries do
     local entry = block.entries[index]
-    lines[#lines + 1] = "  " .. name .. "[#" .. name .. " + 1] = {"
-    lines[#lines + 1] = "    url = " .. quote(entry.url) .. ","
-    lines[#lines + 1] = "    sha256 = " .. quote(entry.sha256) .. ","
-    lines[#lines + 1] = "    as = " .. quote(entry.artifact .. " " .. entry.version) .. ","
-    lines[#lines + 1] = "  }"
+    lines[#lines + 1] = indent .. name .. "[#" .. name .. " + 1] = {"
+    lines[#lines + 1] = indent .. "  url = " .. quote(entry.url) .. ","
+    lines[#lines + 1] = indent .. "  sha256 = " .. quote(entry.sha256) .. ","
+    lines[#lines + 1] = indent .. "  as = " .. quote(entry.artifact .. " " .. entry.version) .. ","
+    lines[#lines + 1] = indent .. "}"
   end
   lines[#lines + 1] = ""
-  lines[#lines + 1] = "  toolchain." .. name .. " = " .. name
+  lines[#lines + 1] = indent .. field .. " = " .. name
+end
+
+--- @implNote a nested path gets a `do` block of its own, so its `owner` walk
+--- and its local cannot shadow the flat blocks around it. Its keys are quoted
+--- fields and its local is always `pins`, so no key, "owner" included, can
+--- collide with a name the block itself uses.
+local function append_block(lines, block)
+  local key = block.path[#block.path]
+  if #block.path == 1 then
+    append_entries(lines, block, key, "toolchain." .. key, "  ")
+  else
+    lines[#lines + 1] = "  do"
+    lines[#lines + 1] = "    local owner = toolchain"
+    for index = 1, #block.path - 1 do
+      local step = "owner[" .. quote(block.path[index]) .. "]"
+      lines[#lines + 1] = "    " .. step .. " = " .. step .. " or {}"
+      lines[#lines + 1] = "    owner = " .. step
+    end
+    append_entries(lines, block, "pins", "owner[" .. quote(key) .. "]", "    ")
+    lines[#lines + 1] = "  end"
+  end
   lines[#lines + 1] = ""
 end
 

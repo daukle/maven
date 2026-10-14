@@ -1,0 +1,1 @@
+resolve[1].into[3] "class-path" is not a plain key name
