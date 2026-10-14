@@ -1,0 +1,1 @@
+coordinates[1] "org.ow2.asm:asm:${asm}" references "asm", which [toolchains.maven.versions] does not declare

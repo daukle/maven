@@ -1,0 +1,14 @@
+schema = 1
+project = "daukle/maven-test"
+version = "1.0.0"
+
+[modules]
+
+[plugins]
+maven = "./plugins"
+
+[toolchains.maven]
+coordinates = ["org.${x}:asm:9.8"]
+
+[toolchains.maven.versions]
+x = "ow2"

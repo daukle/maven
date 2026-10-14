@@ -1,0 +1,14 @@
+schema = 1
+project = "daukle/maven-test"
+version = "1.0.0"
+
+[modules]
+
+[plugins]
+maven = "./plugins"
+
+[toolchains.maven]
+coordinates = ["com.google.guava:guava:${guava}-jre"]
+
+[toolchains.maven.versions]
+guava = "33.0"
