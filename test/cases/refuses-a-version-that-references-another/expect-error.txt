@@ -1,0 +1,1 @@
+coordinates[1] "org.ow2.asm:asm:${asm}" references "asm", whose version "${base}" is itself a reference

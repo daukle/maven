@@ -22,9 +22,12 @@ function versions.read(config)
           .. kind_of(shared), 0)
   end
   for name, value in pairs(shared) do
-    if type(value) ~= "string" or value == "" then
+    if type(value) ~= "string" then
       error('"versions.' .. tostring(name) .. '" must be a non-empty version string, not a '
             .. type(value), 0)
+    end
+    if value == "" then
+      error('"versions.' .. tostring(name) .. '" is empty: write the version it stands for', 0)
     end
   end
   return shared
@@ -47,6 +50,10 @@ function versions.substitute(text, shared, at)
   if value == nil then
     error(at .. ' "' .. text .. '" references "' .. name .. '", which'
           .. ' [toolchains.maven.versions] does not declare', 0)
+  end
+  if value:find("${", 1, true) ~= nil then
+    error(at .. ' "' .. text .. '" references "' .. name .. '", whose version "' .. value
+          .. '" is itself a reference: a version names one version, not another name', 0)
   end
   return head .. value
 end

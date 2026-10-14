@@ -93,7 +93,7 @@ unpinned fetch is the one acquisition in daukle that does not verify what it got
 | --- | --- |
 | `coordinates` | a list of `group:artifact:version`. Required unless a `resolve` entry supplies a closure instead |
 | `testCoordinates` | optional, the test-only ones. A second closure and a `testClasspath` block |
-| `versions` | optional, a table of versions by name. A coordinate in `coordinates`, `testCoordinates` or any `resolve` entry may write its version as `${name}`; the whole version field, nothing partial. An unused entry is not refused. See **One version shared by several coordinates** |
+| `versions` | optional, a table of versions by name. A coordinate in `coordinates`, `testCoordinates` or any `resolve` entry may write its version as `${name}`; the whole version field, nothing partial. Every entry must be a non-empty string, but an UNUSED one is not checked as a version, so an unused range resolves fine. See **One version shared by several coordinates** |
 | `strategy` | `"highest"` (default, Gradle's rule) or `"nearest"` (Maven's) |
 | `repository` | defaults to Maven Central |
 | `for` | which toolchain the generated blocks name, default `"java"` |
@@ -271,11 +271,14 @@ coordinates = ["org.ow2.asm:asm-commons:${asm}", "org.ow2.asm:asm-util:${asm}"]
 asm = "9.8"
 ```
 
-The reference is substituted before anything is checked or fetched, so `classpath.lua` is
-identical to the one the literal versions produce; the `resolve-takes-*` cases assert exactly
-that against their literal twins. Only the whole version field is a reference, a name not in the
-table is refused by name, and the table is shared by every list in the block, `resolve` entries
-included. **Aliases and bundles are not modelled**: a daukle manifest names each coordinate
+The reference is substituted before the shape, range and SNAPSHOT checks and before anything is
+fetched, so a referenced range is refused exactly as a literal one is, and `classpath.lua`
+carries the same pins the literal versions produce: each `resolve-takes-*` case uses its literal
+twin's expected file unchanged, compared, as every case here is, with comments stripped and lines
+sorted. Only the whole version field is a reference, a name not in the table is refused by name,
+a version that is itself a `${...}` is refused, and the table is shared by every list in the
+block, `resolve` entries included. **A name holding a `.` must be quoted**, `"maven.tools" =
+"3.7.1"`, because TOML reads a bare `maven.tools` as a nested table. **Aliases and bundles are not modelled**: a daukle manifest names each coordinate
 itself, so an alias would be a second name for the one string you already write. Nothing here
 reads a `libs.versions.toml`; a migrating project converts it once.
 
