@@ -1,0 +1,1 @@
+testCoordinates[1] "org.opentest4j:opentest4j:${opentest4j}" references "opentest4j"

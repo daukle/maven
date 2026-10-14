@@ -1,0 +1,1 @@
+resolve[1].coordinates[1] "org.opentest4j:opentest4j:${opentest4j}" references "opentest4j", which [toolchains.maven.versions] does not declare

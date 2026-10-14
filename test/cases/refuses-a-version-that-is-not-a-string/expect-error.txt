@@ -1,0 +1,1 @@
+"versions.slf4j" must be a non-empty version string, not a number

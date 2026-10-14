@@ -1,0 +1,1 @@
+coordinates[1] "org.${x}:asm:9.8" uses "${" other than as the whole version
