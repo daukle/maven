@@ -93,6 +93,7 @@ unpinned fetch is the one acquisition in daukle that does not verify what it got
 | --- | --- |
 | `coordinates` | a list of `group:artifact:version`. Required unless a `resolve` entry supplies a closure instead |
 | `testCoordinates` | optional, the test-only ones. A second closure and a `testClasspath` block |
+| `versions` | optional, a table of versions by name. A coordinate in `coordinates`, `testCoordinates` or any `resolve` entry may write its version as `${name}`; the whole version field, nothing partial. Every entry must be a non-empty string, but an UNUSED one is not checked as a version, so an unused range resolves fine. See **One version shared by several coordinates** |
 | `strategy` | `"highest"` (default, Gradle's rule) or `"nearest"` (Maven's) |
 | `repository` | defaults to Maven Central |
 | `for` | which toolchain the generated blocks name, default `"java"` |
@@ -260,18 +261,30 @@ exist` and zero class files, so the resolved list is load bearing rather than de
 
 ## One version shared by several coordinates
 
-What a Gradle version catalog's `version.ref` does, `daukle.lua` already does: the plugin reads
-the merged config, so coordinates composed there are resolved like any others.
+What a Gradle version catalog's `version.ref` does:
 
-```lua
-local versions = { asm = "9.8" }
-local function asm(artifact) return "org.ow2.asm:" .. artifact .. ":" .. versions.asm end
-daukle.config.toolchains.maven.coordinates = { asm("asm-commons"), asm("asm-util") }
+```toml
+[toolchains.maven]
+coordinates = ["org.ow2.asm:asm-commons:${asm}", "org.ow2.asm:asm-util:${asm}"]
+
+[toolchains.maven.versions]
+asm = "9.8"
 ```
 
-`resolve-shares-one-version-across-coordinates-in-daukle-lua` proves it against Maven Central, and
-fails when the overlay is removed. **There is no declarative spelling**: `daukle.toml` has no
-variables, and nothing here reads a `libs.versions.toml`.
+The reference is substituted before the shape, range and SNAPSHOT checks and before anything is
+fetched, so a referenced range is refused exactly as a literal one is, and `classpath.lua`
+carries the same pins the literal versions produce: each `resolve-takes-*` case uses its literal
+twin's expected file unchanged, compared, as every case here is, with comments stripped and lines
+sorted. Only the whole version field is a reference, a name not in the table is refused by name,
+a version that is itself a `${...}` is refused, and the table is shared by every list in the
+block, `resolve` entries included. **A name holding a `.` must be quoted**, `"maven.tools" =
+"3.7.1"`, because TOML reads a bare `maven.tools` as a nested table. **Aliases and bundles are not modelled**: a daukle manifest names each coordinate
+itself, so an alias would be a second name for the one string you already write. Nothing here
+reads a `libs.versions.toml`; a migrating project converts it once.
+
+`daukle.lua` can compose coordinates too (`resolve-shares-one-version-across-coordinates-in-daukle-lua`)
+and can set `versions` itself (`resolve-takes-versions-from-daukle-lua`); it is the escape hatch
+when a version has to be computed rather than written.
 
 ## What this does not do
 

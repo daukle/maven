@@ -1,0 +1,1 @@
+"versions" must be a table keyed by name, as [toolchains.maven.versions], not a number

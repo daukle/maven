@@ -1,0 +1,15 @@
+schema = 1
+project = "daukle/maven-test"
+version = "1.0.0"
+
+[modules]
+
+[plugins]
+maven = "./plugins"
+
+[toolchains.maven]
+coordinates = ["org.slf4j:slf4j-api:${slf4j}"]
+
+[toolchains.maven.versions]
+slf4j = "1.7.36"
+unused = "[1.0,2.0)"

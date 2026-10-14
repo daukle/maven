@@ -1,4 +1,5 @@
 local pom = daukle.require("lib/pom")
+local versions = daukle.require("lib/versions")
 
 --[[ Gradle resolves a conflict by taking the HIGHEST version and Maven by
      taking the NEAREST, and on the first real project measured they disagree
@@ -33,11 +34,12 @@ end
 --- Splits "group:artifact:version" and refuses everything this resolver does
 --- not model, rather than half supporting it. A range and a snapshot are both
 --- moving targets, which is the one thing daukle does not have.
-local function parse_coordinate(text, index, key)
+local function parse_coordinate(text, index, key, shared)
   local at = key .. "[" .. index .. "]"
   if type(text) ~= "string" then
     error(at .. " must be a string, not a " .. type(text), 0)
   end
+  text = versions.substitute(text, shared, at)
   local group, artifact, version = text:match("^([^:]+):([^:]+):([^:]+)$")
   if group == nil then
     error(at .. ' "' .. text .. '" is not "group:artifact:version"', 0)
@@ -54,14 +56,14 @@ local function parse_coordinate(text, index, key)
   return { group = group, artifact = artifact, version = version }
 end
 
-local function parse_coordinates(listed, key)
+local function parse_coordinates(listed, key, shared)
   if type(listed) ~= "table" then
     error('"' .. key .. '" must be a list of "group:artifact:version" strings, not a '
           .. type(listed), 0)
   end
   local declared = {}
   for index = 1, #listed do
-    declared[index] = parse_coordinate(listed[index], index, key)
+    declared[index] = parse_coordinate(listed[index], index, key, shared)
   end
   if #declared == 0 then
     error('"' .. key .. '" is empty: there is nothing to resolve', 0)
@@ -75,9 +77,9 @@ end
 --- instead, which is why the absence is reported by the caller rather than
 --- here: a block with neither is the real error and this function cannot see
 --- the other half.
-local function declared_of(config)
+local function declared_of(config, shared)
   if config.coordinates == nil then return nil end
-  return parse_coordinates(config.coordinates, "coordinates")
+  return parse_coordinates(config.coordinates, "coordinates", shared)
 end
 
 --- The roots of the TEST closure, or nil when the project declares none.
@@ -88,7 +90,7 @@ end
 --- the compile closure with extras bolted on: Gradle resolves
 --- testRuntimeClasspath as its own configuration, so a test dependency may
 --- raise a version the compile side never sees.
-local function test_declared_of(config, declared)
+local function test_declared_of(config, declared, shared)
   local listed = config.testCoordinates
   if listed == nil then return nil end
   if type(listed) ~= "table" then
@@ -102,7 +104,7 @@ local function test_declared_of(config, declared)
   local roots = {}
   for index = 1, #declared do roots[index] = declared[index] end
   for index = 1, #listed do
-    roots[#roots + 1] = parse_coordinate(listed[index], index, "testCoordinates")
+    roots[#roots + 1] = parse_coordinate(listed[index], index, "testCoordinates", shared)
   end
   return roots
 end
@@ -210,14 +212,15 @@ end
 --- no module with the classpath the project compiles against, and it comes
 --- from a different repository.
 local function resolutions_of(config)
+  local shared = versions.read(config)
   local repository = repository_of(config)
   local strategy = strategy_of(config)
   local target = config["for"] or "java"
-  local declared = declared_of(config)
+  local declared = declared_of(config, shared)
   local resolutions = {}
 
   if declared ~= nil then
-    local test_roots = test_declared_of(config, declared)
+    local test_roots = test_declared_of(config, declared, shared)
     resolutions[1] = {
       primary = true,
       repository = repository, strategy = strategy, target = target,
@@ -249,7 +252,8 @@ local function resolutions_of(config)
         target = entry["for"] or target,
         into = table.concat(path, "."),
         path = path,
-        roots = parse_coordinates(entry.coordinates, "resolve[" .. index .. "].coordinates"),
+        roots = parse_coordinates(entry.coordinates, "resolve[" .. index .. "].coordinates",
+                                  shared),
       }
     end
   end

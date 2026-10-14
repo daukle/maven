@@ -1,0 +1,21 @@
+schema = 1
+project = "daukle/maven-test"
+version = "1.0.0"
+
+[modules]
+
+[plugins]
+maven = "./plugins"
+
+[toolchains.maven]
+# Reaching the repeated-key refusal proves the one name was substituted in all three
+# lists, offline: that check runs only after every list has been parsed.
+coordinates = ["org.ow2.asm:asm:${shared-name.v}", "org.ow2.asm:asm-util:${shared-name.v}"]
+testCoordinates = ["org.ow2.asm:asm-tree:${shared-name.v}"]
+
+[[toolchains.maven.resolve]]
+coordinates = ["org.ow2.asm:asm-commons:${shared-name.v}"]
+into = "classpath"
+
+[toolchains.maven.versions]
+"shared-name.v" = "9.8"

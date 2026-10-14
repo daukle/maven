@@ -1,0 +1,1 @@
+coordinates[1] "org.ow2.asm:asm:[9.0,10.0)" names a version RANGE
