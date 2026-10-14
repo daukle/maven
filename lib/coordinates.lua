@@ -107,8 +107,36 @@ local function test_declared_of(config, declared)
   return roots
 end
 
---- The key a resolution's pins are appended to, refused unless the generated
---- file could assign to it.
+local function refuse_a_key_that_is_not_plain(key, at)
+  if key:find("^[%a_][%w_]*$") == nil then
+    error(at .. ' "' .. key .. '" is not a plain key name. The generated file assigns'
+          .. ' toolchain.<key>, so it must be a letter or underscore followed by letters,'
+          .. ' digits or underscores', 0)
+  end
+end
+
+--- A list `into`, the path from the toolchain's own table to the key appended to.
+---
+--- @implNote a list rather than a dotted string, because a module name may
+--- itself hold a ".", and a dotted path would split it into a wrong path with no
+--- error. Only the LAST component is the key the pins land on, so only it must
+--- be a plain name; the others are rendered quoted and may hold a "/".
+local function path_of(into, at)
+  if #into == 0 then
+    error(at .. " is an empty list: a path names at least the key the pins land on", 0)
+  end
+  for index = 1, #into do
+    local component = into[index]
+    if type(component) ~= "string" or component == "" or component:find("%c") ~= nil then
+      error(at .. "[" .. index .. "] must be a non-empty string with no control character", 0)
+    end
+  end
+  refuse_a_key_that_is_not_plain(into[#into], at .. "[" .. #into .. "]")
+  return into
+end
+
+--- The path a resolution's pins are appended to, refused unless the generated
+--- file could assign to it. A plain string is a path of one key.
 local function into_of(entry, index)
   local at = "resolve[" .. index .. '].into'
   local into = entry.into
@@ -117,15 +145,12 @@ local function into_of(entry, index)
           .. ' to. There is no default, because a closure that lands on a key nothing reads'
           .. ' builds and resolves and changes nothing', 0)
   end
+  if type(into) == "table" then return path_of(into, at) end
   if type(into) ~= "string" then
     error(at .. " must be a string, not a " .. type(into), 0)
   end
-  if into:find("^[%a_][%w_]*$") == nil then
-    error(at .. ' "' .. into .. '" is not a plain key name. The generated file assigns'
-          .. ' toolchain.<key>, so it must be a letter or underscore followed by letters,'
-          .. ' digits or underscores', 0)
-  end
-  return into
+  refuse_a_key_that_is_not_plain(into, at)
+  return { into }
 end
 
 --[[ Two resolutions appending to one key of one toolchain would interleave two
@@ -174,6 +199,7 @@ local function resolutions_of(config)
       primary = true,
       repository = repository, strategy = strategy, target = target,
       into = "classpath", testInto = test_roots ~= nil and "testClasspath" or nil,
+      path = { "classpath" }, testPath = test_roots ~= nil and { "testClasspath" } or nil,
       roots = declared, testRoots = test_roots,
     }
   elseif config.testCoordinates ~= nil then
@@ -193,11 +219,13 @@ local function resolutions_of(config)
       if type(entry) ~= "table" then
         error("resolve[" .. index .. "] must be a table, not a " .. type(entry), 0)
       end
+      local path = into_of(entry, index)
       resolutions[#resolutions + 1] = {
         repository = repository_of(entry, repository),
         strategy = strategy_of(entry, strategy),
         target = entry["for"] or target,
-        into = into_of(entry, index),
+        into = table.concat(path, "."),
+        path = path,
         roots = parse_coordinates(entry.coordinates, "resolve[" .. index .. "].coordinates"),
       }
     end
