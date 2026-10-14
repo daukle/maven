@@ -1,0 +1,12 @@
+schema = 1
+project = "daukle/maven-test"
+version = "1.0.0"
+
+[modules]
+
+[plugins]
+maven = "./plugins"
+
+# The coordinates are composed in daukle.lua, from one version shared by name,
+# which is what a Gradle version catalog's version.ref does.
+[toolchains.maven]
