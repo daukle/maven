@@ -36,6 +36,7 @@ daukle.include("daukle/maven/classpath.lua")
 | --- | --- |
 | `coordinates` | a list of `group:artifact:version`, required unless `resolve` supplies a closure |
 | `testCoordinates` | optional, the test-only ones |
+| `versions` | versions by name, which a coordinate names as `${name}`, so one version is written once |
 | `strategy` | `"highest"` (Gradle's rule, the default) or `"nearest"` (Maven's) |
 | `repository` | defaults to Maven Central |
 | `for` | which toolchain the generated blocks name, default `"java"` |
