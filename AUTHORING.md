@@ -315,3 +315,16 @@ rather than attempted, since asking Central for a literal `${x}` is a 404 that w
 
 **There is no `print`**, so a task cannot report. The generated file is the report, and the
 per-artifact acquisition lines `daukle.pin` already writes are what reaches the terminal.
+
+## Resolving as a library
+
+`lib/resolve` and `lib/output` are exported, so a plugin whose job is resolving can pin a closure
+without shelling out to this one. `resolve.pinned_groups(resolutions)` takes the entries
+`coordinates.resolutions_of` produces (`{ target, path, testPath?, repository, coordinates,
+primary }`) and returns the groups `output.render(groups, header)` writes, `header` being an
+optional first comment line naming the writer.
+
+**It calls `daukle.pin`**, and a required module runs under the CALLER's `uses`, so the caller
+declares `pin` and `fetch` itself and can pin only in a `--resolve` run. That is deliberate: it keeps
+the unpinned fetch visible on the plugin that does it, which is why `daukle/java` still reads the
+generated file instead of requiring this.

@@ -51,7 +51,7 @@ run_case() {
   mkdir -p "$(dirname "$sandbox")"
   cp -R "$case_dir" "$sandbox"
   rm -rf "$sandbox/expected" "$sandbox/expect-error.txt" "$sandbox/needs-central" \
-         "$sandbox/then" "$sandbox/then.lua"
+         "$sandbox/then" "$sandbox/then.lua" "$sandbox/writer"
   mkdir -p "$sandbox/plugins"
   cp "$root/plugin.lua" "$sandbox/plugins/plugin.lua"
   cp -R "$root/lib" "$sandbox/plugins/lib"
@@ -91,7 +91,9 @@ run_case() {
   # resolved.txt is derived and lives under build/; classpath.lua is committed
   # and lives in daukle/, which is the whole point of the two directories.
   wanted_name=resolved.txt
-  produced="$sandbox/build/daukle/maven/resolved.txt"
+  writer=maven
+  [ -f "$case_dir/writer" ] && writer=$(cat "$case_dir/writer")
+  produced="$sandbox/build/daukle/$writer/resolved.txt"
   if [ -f "$case_dir/expected/classpath.lua" ]; then
     wanted_name=classpath.lua
     produced="$sandbox/daukle/maven/classpath.lua"
