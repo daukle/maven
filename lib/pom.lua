@@ -81,8 +81,9 @@ local function fetch_text(session, group, artifact, version)
   if cached ~= nil then return cached end
 
   local url = pom.url(session.repository, group, artifact, version, "pom")
-  local text = daukle.cache("maven-pom", version, group .. "_" .. artifact,
-                            function() return daukle.fetch(url) end)
+  local verbs = session.verbs
+  local text = verbs.cache("maven-pom", version, group .. "_" .. artifact,
+                           function() return verbs.fetch(url) end)
   session.fetches = session.fetches + 1
   session.texts[coordinate] = text
   return text
@@ -183,8 +184,10 @@ function pom.settle(model)
   end
 end
 
-function pom.session(repository)
-  return { repository = repository or CENTRAL, texts = {}, models = {}, fetches = 0 }
+--- @param verbs table of the caller's own `cache` and `fetch`, because a module required across a plugin boundary has no verbs of its own
+function pom.session(repository, verbs)
+  return { repository = repository or CENTRAL, verbs = verbs, texts = {}, models = {},
+           fetches = 0 }
 end
 
 --- The folded model for one coordinate, memoised for the session.
