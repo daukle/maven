@@ -319,12 +319,24 @@ per-artifact acquisition lines `daukle.pin` already writes are what reaches the 
 ## Resolving as a library
 
 `lib/resolve` and `lib/output` are exported, so a plugin whose job is resolving can pin a closure
-without shelling out to this one. `resolve.pinned_groups(resolutions)` takes the entries
-`coordinates.resolutions_of` produces (`{ target, path, testPath?, repository, coordinates,
-primary }`) and returns the groups `output.render(groups, header)` writes, `header` being an
-optional first comment line naming the writer.
+without shelling out to this one. `resolve.pinned_groups(resolutions)` takes a list of tables and
+returns the groups `output.render(groups, header, include)` writes. It reads exactly these fields
+and no others (`primary` is not one of them):
 
-**It calls `daukle.pin`**, and a required module runs under the CALLER's `uses`, so the caller
-declares `pin` and `fetch` itself and can pin only in a `--resolve` run. That is deliberate: it keeps
-the unpinned fetch visible on the plugin that does it, which is why `daukle/java` still reads the
-generated file instead of requiring this.
+| field | |
+| --- | --- |
+| `target` | required, the toolchain key the pins belong to |
+| `repository` | required, a repository url without a trailing slash |
+| `strategy` | `"highest"` or `"nearest"`; anything else resolves as `"highest"` |
+| `roots` | required, a list of `{ group, artifact, version }` |
+| `path` | required, a list of key names the pins are appended to |
+| `testRoots`, `testPath` | optional, but each needs the other |
+
+`coordinates.resolutions_of` produces these. `header` is an optional first comment line naming the
+writer, and `include` the optional path the file tells its reader to `daukle.include`; each
+defaults to maven's own.
+
+**The caller's `uses` must declare `pin`, `fetch` and `cache`.** A required module runs under the
+CALLER's `uses`, so the unpinned fetch stays visible on the plugin that does it, which is why
+`daukle/java` still reads the generated file instead of requiring this. `pin` works only in a
+`--resolve` run.

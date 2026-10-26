@@ -128,9 +128,13 @@ local function pinned_entries(session, modules)
   return entries
 end
 
---- @implNote calls daukle.pin, so it runs only in a --resolve run and under
---- the CALLER's "uses", which must therefore declare "pin" and "fetch".
---- @param resolutions coordinates.resolutions_of-shaped entries
+--- @implNote calls daukle.pin, so it runs only in a --resolve run, and pom.load calls
+--- daukle.cache and daukle.fetch: the CALLER's "uses" must declare "pin", "fetch" and "cache".
+--- @param resolutions list of tables carrying exactly the fields read here:
+--- `target` (toolchain key, string), `repository` (url string), `strategy` ("highest" or
+--- "nearest"; anything else resolves as "highest"), `roots` (list of { group, artifact, version }),
+--- `path` (list of key names the pins are appended to), and optionally `testRoots` with
+--- `testPath`, both required when either is given. No other field, `primary` included, is read.
 --- @return table the groups output.render takes
 local function pinned_groups(resolutions)
   local session_for = sessions_of()
