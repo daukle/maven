@@ -61,12 +61,12 @@ end
 
 --- One session per repository, so two resolutions against the same one share
 --- every POM they both reach.
-local function sessions_of()
+local function sessions_of(verbs)
   local sessions = {}
   return function(repository)
     local session = sessions[repository]
     if session == nil then
-      session = pom.session(repository)
+      session = pom.session(repository, verbs)
       sessions[repository] = session
     end
     return session
@@ -118,7 +118,7 @@ local function pinned_entries(session, modules)
     if publishes_a_jar(session, module) then
       local url = pom.url(session.repository, module.group, module.artifact, module.version,
                           "jar")
-      local pinned = daukle.pin{ url = url, as = module.artifact .. " " .. module.version }
+      local pinned = session.verbs.pin{ url = url, as = module.artifact .. " " .. module.version }
       entries[#entries + 1] = {
         artifact = module.artifact, version = module.version,
         url = url, sha256 = pinned.sha256,
@@ -128,16 +128,18 @@ local function pinned_entries(session, modules)
   return entries
 end
 
---- @implNote calls daukle.pin, so it runs only in a --resolve run, and pom.load calls
---- daukle.cache and daukle.fetch: the CALLER's "uses" must declare "pin", "fetch" and "cache".
+--- @implNote the verbs come from the caller because core hands a module required across a
+--- plugin boundary an environment with none. Pinning works only in a --resolve run, and the
+--- caller's own "uses" still governs which verbs it has to pass.
+--- @param verbs table `{ cache = daukle.cache, fetch = daukle.fetch, pin = daukle.pin }`
 --- @param resolutions list of tables carrying exactly the fields read here:
 --- `target` (toolchain key, string), `repository` (url string), `strategy` ("highest" or
 --- "nearest"; anything else resolves as "highest"), `roots` (list of { group, artifact, version }),
 --- `path` (list of key names the pins are appended to), and optionally `testRoots` with
 --- `testPath`, both required when either is given. No other field, `primary` included, is read.
 --- @return table the groups output.render takes
-local function pinned_groups(resolutions)
-  local session_for = sessions_of()
+local function pinned_groups(resolutions, verbs)
+  local session_for = sessions_of(verbs)
   local order, add = grouped_by_target()
   for index = 1, #resolutions do
     local resolution = resolutions[index]

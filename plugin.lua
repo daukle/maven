@@ -15,6 +15,8 @@ local coordinates = daukle.require("lib/coordinates")
 local output = daukle.require("lib/output")
 local resolve = daukle.require("lib/resolve")
 
+local VERBS = { cache = daukle.cache, fetch = daukle.fetch, pin = daukle.pin }
+
 daukle.toolchain{
   name = "maven",
   generate = function(context)
@@ -27,7 +29,7 @@ daukle.task{
   name = "maven:resolve",
   run = function(context)
     local resolutions = coordinates.resolutions_of(coordinates.config_of(context))
-    local groups = resolve.pinned_groups(resolutions)
+    local groups = resolve.pinned_groups(resolutions, VERBS)
 
     --[[ committed, because a clone has to build without resolving again: an
          ordinary build may not fetch anything unpinned, so the pins have to be
@@ -50,7 +52,7 @@ daukle.task{
   name = "maven:list",
   run = function(context)
     local resolutions = coordinates.resolutions_of(coordinates.config_of(context))
-    local session_for = resolve.sessions_of()
+    local session_for = resolve.sessions_of(VERBS)
     local lines, skipped = {}, {}
 
     --[[ A module carries the name of the key it is destined for, as a PREFIX
