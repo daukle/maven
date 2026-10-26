@@ -157,6 +157,8 @@ local function collect(session, group, artifact, version, into, depth)
           if into.managed[managed_key] == nil then into.managed[managed_key] = managed end
         end
       else
+        entry.group = interpolate(entry.group, into.properties)
+        entry.artifact = interpolate(entry.artifact, into.properties)
         into.managed[key_of(entry.group, entry.artifact)] = entry
       end
     end
