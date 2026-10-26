@@ -184,8 +184,7 @@ function pom.settle(model)
   end
 end
 
---- @param verbs table of the caller's own `cache` and `fetch` (and `pin`, for lib/resolve),
---- because a module required across a plugin boundary has no verbs of its own
+--- @param verbs table of the caller's own `cache` and `fetch`, because a module required across a plugin boundary has no verbs of its own
 function pom.session(repository, verbs)
   return { repository = repository or CENTRAL, verbs = verbs, texts = {}, models = {},
            fetches = 0 }

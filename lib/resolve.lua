@@ -59,9 +59,25 @@ local function closures(resolution, session)
   return compiled, extra, rounds, unversioned
 end
 
+--- Raises one message naming every verb the caller left out of `verbs`.
+local function require_verbs(verbs, names)
+  local missing = {}
+  for index = 1, #names do
+    if type(verbs) ~= "table" or verbs[names[index]] == nil then
+      missing[#missing + 1] = names[index]
+    end
+  end
+  if #missing == 0 then return end
+  error("maven:lib/resolve needs { " .. table.concat(names, ", ") .. " } from its caller;"
+        .. " missing: " .. table.concat(missing, ", ") .. ". The caller must declare them in"
+        .. " its uses and pass them, as { cache = daukle.cache, fetch = daukle.fetch,"
+        .. " pin = daukle.pin }", 0)
+end
+
 --- One session per repository, so two resolutions against the same one share
 --- every POM they both reach.
 local function sessions_of(verbs)
+  require_verbs(verbs, { "cache", "fetch" })
   local sessions = {}
   return function(repository)
     local session = sessions[repository]
@@ -139,6 +155,7 @@ end
 --- `testPath`, both required when either is given. No other field, `primary` included, is read.
 --- @return table the groups output.render takes
 local function pinned_groups(resolutions, verbs)
+  require_verbs(verbs, { "cache", "fetch", "pin" })
   local session_for = sessions_of(verbs)
   local order, add = grouped_by_target()
   for index = 1, #resolutions do
