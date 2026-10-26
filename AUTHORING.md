@@ -336,7 +336,9 @@ and no others (`primary` is not one of them):
 writer, and `include` the optional path the file tells its reader to `daukle.include`; each
 defaults to maven's own.
 
-**The caller's `uses` must declare `pin`, `fetch` and `cache`.** A required module runs under the
-CALLER's `uses`, so the unpinned fetch stays visible on the plugin that does it, which is why
-`daukle/java` still reads the generated file instead of requiring this. `pin` works only in a
-`--resolve` run.
+**The second argument is the verbs**: `resolve.pinned_groups(resolutions, { cache = daukle.cache,
+fetch = daukle.fetch, pin = daukle.pin })`. Core gives a module required across a plugin boundary
+an environment with no verbs, so the caller passes its own. They are the caller's functions, so
+its `uses` still governs: it must declare `pin`, `fetch` and `cache`, and `pin` works only in a
+`--resolve` run. That keeps the unpinned fetch visible on the plugin that does it, which is why
+`daukle/java` still reads the generated file instead of requiring this.
