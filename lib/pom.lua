@@ -35,7 +35,7 @@ local function read_dependency(node)
     group = xml.text(node, "groupId"),
     artifact = xml.text(node, "artifactId"),
     version = xml.text(node, "version"),
-    scope = xml.text(node, "scope") or "compile",
+    scope = xml.text(node, "scope"),
     kind = xml.text(node, "type") or "jar",
     classifier = xml.text(node, "classifier"),
     optional = xml.text(node, "optional") == "true",
@@ -65,6 +65,12 @@ local function key_of(group, artifact)
 end
 
 pom.key_of = key_of
+
+--- A managed entry's key, which Maven makes of type and classifier as well: `log4j 2.17.1`
+--- manages `log4j-api` twice, once as a jar and once as a `test` scoped test-jar.
+function pom.managed_key(group, artifact, kind, classifier)
+  return key_of(group, artifact) .. ":" .. (kind or "jar") .. ":" .. (classifier or "")
+end
 
 --- Fetches one POM's text, through the cache so a second run of a resolve
 --- costs no request. The cache key is the coordinate, which is immutable on
@@ -159,7 +165,7 @@ local function collect(session, group, artifact, version, into, depth)
       else
         entry.group = interpolate(entry.group, into.properties)
         entry.artifact = interpolate(entry.artifact, into.properties)
-        into.managed[key_of(entry.group, entry.artifact)] = entry
+        into.managed[pom.managed_key(entry.group, entry.artifact, entry.kind, entry.classifier)] = entry
       end
     end
   end
