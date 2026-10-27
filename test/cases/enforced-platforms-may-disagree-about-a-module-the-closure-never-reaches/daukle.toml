@@ -1,0 +1,14 @@
+schema = 1
+project = "daukle/maven-test"
+version = "1.0.0"
+
+[modules]
+
+[plugins]
+maven = "./plugins"
+
+# Both BOMs force jackson-databind, at different versions, and nothing here
+# reaches it: Gradle fails a strict conflict only for a module in the graph.
+[toolchains.maven]
+coordinates = ["org.slf4j:slf4j-api:1.7.36"]
+enforcedPlatforms = ["com.fasterxml.jackson:jackson-bom:2.12.0", "com.fasterxml.jackson:jackson-bom:2.16.2"]

@@ -82,12 +82,14 @@ end
 --- @param prefix "" for the block itself, "resolve[<n>]." for an entry
 local function platforms_of(entry, shared, prefix)
   if entry.platforms == nil and entry.enforcedPlatforms == nil then return nil end
-  local found = { raise = {}, force = {} }
-  if entry.platforms ~= nil then
-    found.raise = parse_coordinates(entry.platforms, prefix .. "platforms", shared)
-  end
-  if entry.enforcedPlatforms ~= nil then
-    found.force = parse_coordinates(entry.enforcedPlatforms, prefix .. "enforcedPlatforms", shared)
+  local found = { raise = {}, force = {}, at = prefix .. "enforcedPlatforms" }
+  for _, pair in ipairs({ { "platforms", "raise" }, { "enforcedPlatforms", "force" } }) do
+    local key, into = pair[1], pair[2]
+    local listed = entry[key]
+    if type(listed) == "table" and next(listed) == nil then
+      error('"' .. prefix .. key .. '" is empty: leave the key out rather than declaring no platform', 0)
+    end
+    if listed ~= nil then found[into] = parse_coordinates(listed, prefix .. key, shared) end
   end
   return found
 end
