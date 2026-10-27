@@ -142,10 +142,42 @@ local function sweep(session, declared, chosen, strategy)
   return settled, order
 end
 
+--- The version a platform constraint leaves a settled module at.
+--- @implNote under `highest` a platform only raises and an enforced one forces,
+--- the direct declaration included (D-185's M2 and M3). Under `nearest` both are
+--- Maven's dependency management, which overrides what the graph found below
+--- the roots and leaves a root's own version alone.
+local function constrained(entry, constraint, strategy)
+  if strategy == "nearest" then
+    local managed = constraint.force or constraint.raise
+    if entry.depth > 1 then return managed end
+    return entry.version
+  end
+  if constraint.force ~= nil then return constraint.force end
+  if graph.is_higher(constraint.raise, entry.version) then return constraint.raise end
+  return entry.version
+end
+
+--- @implNote a conflict is refused for the first settled module in sorted
+--- order, so the refusal names the same module on every run.
+local function constrain(settled, constraints, strategy)
+  local conflicts = {}
+  for key, entry in pairs(settled) do
+    local constraint = constraints[key]
+    if constraint ~= nil and constraint.conflict ~= nil then conflicts[#conflicts + 1] = key end
+    if constraint ~= nil then entry.version = constrained(entry, constraint, strategy) end
+  end
+  if #conflicts > 0 then
+    table.sort(conflicts)
+    error(constraints[conflicts[1]].conflict, 0)
+  end
+end
+
 --- Sweeps until the chosen version of every module stops changing. Three
 --- rounds on the one real project measured; a resolver that does a single
 --- pass is not a fast one, it is a wrong one.
-function graph.resolve(session, declared, strategy)
+--- @param constraints what `platforms.constraints` returns, or nil
+function graph.resolve(session, declared, strategy, constraints)
   session.unversioned = {}
   local chosen = {}
   local order = {}
@@ -154,6 +186,7 @@ function graph.resolve(session, declared, strategy)
   while true do
     rounds = rounds + 1
     local settled, swept = sweep(session, declared, chosen, strategy)
+    if constraints ~= nil then constrain(settled, constraints, strategy) end
     order = swept
 
     local stable = true

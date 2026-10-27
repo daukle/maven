@@ -1,0 +1,1 @@
+"org.slf4j:slf4j-api" names no version, and no platform the resolution declares manages it

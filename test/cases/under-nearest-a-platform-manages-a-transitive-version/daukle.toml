@@ -1,0 +1,16 @@
+schema = 1
+project = "daukle/maven-test"
+version = "1.0.0"
+
+[modules]
+
+[plugins]
+maven = "./plugins"
+
+# Under Maven's rule a platform is dependency management: it overrides what the
+# graph found below the roots, so jjwt-jackson's jackson-databind 2.12.6.1 becomes
+# 2.16.2. Maven's documented behaviour; no Maven ran here.
+[toolchains.maven]
+strategy = "nearest"
+coordinates = ["io.jsonwebtoken:jjwt-jackson:0.11.5"]
+platforms = ["com.fasterxml.jackson:jackson-bom:2.16.2"]
