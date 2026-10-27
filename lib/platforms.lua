@@ -29,14 +29,15 @@ local function label(bom)
   return bom.group .. ":" .. bom.artifact .. ":" .. bom.version
 end
 
---- @return { [group:artifact] = { raise?, force?, forced_by? } }
+--- @return { [group:artifact] = { raise?, force?, forced_by?, conflict? } }
 --- @implNote two platforms raising one module keep the higher, as two Gradle
---- constraints do; two enforced ones that disagree are refused, because Gradle
---- fails that resolution and no order between them is the right one.
+--- constraints do. Two enforced ones that disagree record a `conflict` rather
+--- than raising here: Gradle fails only when that module is in the graph, and a
+--- BOM manages far more modules than any one closure reaches.
 function platforms.constraints(session, declared)
   local constraints = {}
   if declared == nil then return constraints end
-  for _, bom in ipairs(declared.raise) do
+  for _, bom in ipairs(declared.raise or {}) do
     for key, version in pairs(managed_jars(session, bom)) do
       local constraint = constraints[key] or {}
       if constraint.raise == nil or graph.is_higher(version, constraint.raise) then
@@ -45,15 +46,16 @@ function platforms.constraints(session, declared)
       constraints[key] = constraint
     end
   end
-  for _, bom in ipairs(declared.force) do
+  for _, bom in ipairs(declared.force or {}) do
     for key, version in pairs(managed_jars(session, bom)) do
       local constraint = constraints[key] or {}
-      if constraint.force ~= nil and constraint.force ~= version then
-        error("enforcedPlatforms disagree about " .. key .. ": " .. constraint.forced_by .. " forces "
-              .. constraint.force .. " and " .. label(bom) .. " forces " .. version
-              .. ", and two strict versions have no winner", 0)
+      if constraint.force ~= nil and constraint.force ~= version and constraint.conflict == nil then
+        constraint.conflict = (declared.at or "enforcedPlatforms") .. " disagree about " .. key .. ": "
+                              .. constraint.forced_by .. " forces " .. constraint.force .. " and "
+                              .. label(bom) .. " forces " .. version
+                              .. ", and two strict versions have no winner"
       end
-      constraint.force = version
+      constraint.force = constraint.force or version
       constraint.forced_by = constraint.forced_by or label(bom)
       constraints[key] = constraint
     end

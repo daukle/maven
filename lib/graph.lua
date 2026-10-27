@@ -158,10 +158,18 @@ local function constrained(entry, constraint, strategy)
   return entry.version
 end
 
+--- @implNote a conflict is refused for the first settled module in sorted
+--- order, so the refusal names the same module on every run.
 local function constrain(settled, constraints, strategy)
+  local conflicts = {}
   for key, entry in pairs(settled) do
     local constraint = constraints[key]
+    if constraint ~= nil and constraint.conflict ~= nil then conflicts[#conflicts + 1] = key end
     if constraint ~= nil then entry.version = constrained(entry, constraint, strategy) end
+  end
+  if #conflicts > 0 then
+    table.sort(conflicts)
+    error(constraints[conflicts[1]].conflict, 0)
   end
 end
 

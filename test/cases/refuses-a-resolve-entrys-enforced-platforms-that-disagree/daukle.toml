@@ -1,0 +1,16 @@
+schema = 1
+project = "daukle/maven-test"
+version = "1.0.0"
+
+[modules]
+
+[plugins]
+maven = "./plugins"
+
+[toolchains.maven]
+coordinates = ["org.slf4j:slf4j-api:1.7.36"]
+
+[[toolchains.maven.resolve]]
+into = "tools"
+coordinates = ["com.fasterxml.jackson.core:jackson-databind:2.16.2"]
+enforcedPlatforms = ["com.fasterxml.jackson:jackson-bom:2.12.0", "com.fasterxml.jackson:jackson-bom:2.16.2"]
