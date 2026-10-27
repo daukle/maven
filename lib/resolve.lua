@@ -1,5 +1,6 @@
 local pom = daukle.require("lib/pom")
 local graph = daukle.require("lib/graph")
+local platforms = daukle.require("lib/platforms")
 
 local function key_of(module)
   return module.group .. ":" .. module.artifact
@@ -41,12 +42,15 @@ end
 --- carries test roots. The second return is nil when it does not.
 local function closures(resolution, session)
   local strategy = resolution.strategy
-  local compiled, rounds = graph.resolve(session, resolution.roots, strategy)
+  local constraints = platforms.constraints(session, resolution.platforms)
+  local roots = platforms.versioned(resolution.roots, constraints)
+  local compiled, rounds = graph.resolve(session, roots, strategy, constraints)
   local unversioned = session.unversioned
   if resolution.testRoots == nil then return compiled, nil, rounds, unversioned end
 
   local compile_versions = versions_of(compiled)
-  local tested = graph.resolve(session, resolution.testRoots, strategy)
+  local tested = graph.resolve(session, platforms.versioned(resolution.testRoots, constraints),
+                               strategy, constraints)
   refuse_shadowed(compile_versions, tested)
 
   local extra = {}
@@ -152,7 +156,9 @@ end
 --- `target` (toolchain key, string), `repository` (url string), `strategy` ("highest" or
 --- "nearest"; anything else resolves as "highest"), `roots` (list of { group, artifact, version }),
 --- `path` (list of key names the pins are appended to), and optionally `testRoots` with
---- `testPath`, both required when either is given. No other field, `primary` included, is read.
+--- `testPath`, both required when either is given, and optionally `platforms`,
+--- `{ raise = roots, force = roots }`, whose roots may then omit a version. No other field,
+--- `primary` included, is read.
 --- @return table the groups output.render takes
 local function pinned_groups(resolutions, verbs)
   require_verbs(verbs, { "cache", "fetch", "pin" })

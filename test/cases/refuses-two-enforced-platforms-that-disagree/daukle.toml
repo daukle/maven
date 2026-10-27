@@ -1,0 +1,12 @@
+schema = 1
+project = "daukle/maven-test"
+version = "1.0.0"
+
+[modules]
+
+[plugins]
+maven = "./plugins"
+
+[toolchains.maven]
+coordinates = ["com.fasterxml.jackson.core:jackson-databind:2.17.0"]
+enforcedPlatforms = ["com.fasterxml.jackson:jackson-bom:2.12.0", "com.fasterxml.jackson:jackson-bom:2.17.0"]

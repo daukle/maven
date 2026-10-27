@@ -98,6 +98,7 @@ unpinned fetch is the one acquisition in daukle that does not verify what it got
 | `repository` | defaults to Maven Central |
 | `for` | which toolchain the generated blocks name, default `"java"` |
 | `resolve` | optional, a list of **independent** closures. See below |
+| `platforms`, `enforcedPlatforms` | optional, lists of BOM coordinates, per resolution: a `resolve` entry takes its own. A coordinate may then be a bare `group:artifact`. See **Versions from a platform** |
 
 ## More than one closure, and why `resolve` is not how `testCoordinates` is spelled
 
@@ -286,6 +287,26 @@ reads a `libs.versions.toml`; a migrating project converts it once.
 and can set `versions` itself (`resolve-takes-versions-from-daukle-lua`); it is the escape hatch
 when a version has to be computed rather than written.
 
+## Versions from a platform
+
+What Gradle's `platform(bom)` and `enforcedPlatform(bom)` do, and Maven's imported BOM:
+
+```toml
+[toolchains.maven]
+coordinates = ["com.fasterxml.jackson.core:jackson-databind", "io.jsonwebtoken:jjwt-jackson:0.11.5"]
+platforms = ["com.fasterxml.jackson:jackson-bom:2.16.2"]
+```
+
+Measured against Gradle 9.6.0 and 7.6.4 with `mavenCentral()`, and each `a-platform-*` case is
+that measurement's closure: a bare coordinate takes the version the platform manages; under
+`highest` a platform RAISES a module the graph reaches below it (jjwt's `jackson-databind:2.12.6.1`
+becomes 2.16.2) and never lowers one; an `enforcedPlatforms` entry FORCES its versions, the direct
+declaration included. A platform adds no module of its own and pins no jar. Under `nearest` both
+keys are Maven's dependency management, overriding what the graph found below the roots and
+leaving a root's own version alone: Maven's documented rule, not measured here. Two platforms
+raising one module keep the higher; two enforced ones that disagree are refused, as Gradle fails
+that resolution. A bare coordinate no platform manages is refused by name.
+
 ## What this does not do
 
 - **A lock file.** See above; it is the ask.
@@ -301,7 +322,9 @@ when a version has to be computed rather than written.
 - **Gradle module metadata.** Gradle prefers `.module` files over POMs and can select different
   artifacts. It changed nothing for these twenty, which is measured and not assumed, and **the
   test closure is where it first showed up**: see `apiguardian-api` above. The prediction that this
-  would be the first source of disagreement held.
+  would be the first source of disagreement held. It holds outside the test closure too:
+  `jackson-databind` 2.17.0's POM declares `byte-buddy` at compile scope and its `.module` does
+  not, so this resolver pins `byte-buddy 1.14.9` where Gradle pins none (measured for `D-185`).
 - **Two test classpaths.** Gradle has a test compile one and a test runtime one; this has one, and
   it equals Gradle's compile one. The difference is annotation jars.
 

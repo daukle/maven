@@ -1,0 +1,17 @@
+schema = 1
+project = "daukle/maven-test"
+version = "1.0.0"
+
+[modules]
+
+[plugins]
+maven = "./plugins"
+
+# jjwt-jackson 0.11.5 asks for jackson-databind 2.12.6.1; the platform raises it
+# and its two dependencies to 2.16.2, as Gradle does (D-185 M2).
+[toolchains.maven]
+coordinates = ["io.jsonwebtoken:jjwt-jackson:0.11.5"]
+platforms = ["com.fasterxml.jackson:jackson-bom:${jackson}"]
+
+[toolchains.maven.versions]
+jackson = "2.16.2"
