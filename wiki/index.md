@@ -41,6 +41,8 @@ daukle.include("daukle/maven/classpath.lua")
 | `repository` | defaults to Maven Central |
 | `for` | which toolchain the generated blocks name, default `"java"` |
 | `resolve` | optional, a list of independent closures, each with its own repository and key |
+| `platforms` | optional, BOM coordinates whose versions a bare `group:artifact` takes and which raise a lower version below them, as Gradle's `platform()` does |
+| `enforcedPlatforms` | optional, BOM coordinates whose versions are forced, as Gradle's `enforcedPlatform()` does |
 
 ## A second repository, and a second key
 

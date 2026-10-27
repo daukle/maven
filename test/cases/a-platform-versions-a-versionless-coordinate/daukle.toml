@@ -1,0 +1,14 @@
+schema = 1
+project = "daukle/maven-test"
+version = "1.0.0"
+
+[modules]
+
+[plugins]
+maven = "./plugins"
+
+# Gradle's platform(jackson-bom:2.16.2) beside a versionless jackson-databind,
+# measured on 9.6.0 and 7.6.4 (D-185 M1): every jackson module at 2.16.2.
+[toolchains.maven]
+coordinates = ["com.fasterxml.jackson.core:jackson-databind"]
+platforms = ["com.fasterxml.jackson:jackson-bom:2.16.2"]

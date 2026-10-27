@@ -34,13 +34,19 @@ end
 --- Splits "group:artifact:version" and refuses everything this resolver does
 --- not model, rather than half supporting it. A range and a snapshot are both
 --- moving targets, which is the one thing daukle does not have.
-local function parse_coordinate(text, index, key, shared)
+--- @param versionless true when a platform can supply the version, so a bare
+--- "group:artifact" is legal and returns with no version
+local function parse_coordinate(text, index, key, shared, versionless)
   local at = key .. "[" .. index .. "]"
   if type(text) ~= "string" then
     error(at .. " must be a string, not a " .. type(text), 0)
   end
   text = versions.substitute(text, shared, at)
   local group, artifact, version = text:match("^([^:]+):([^:]+):([^:]+)$")
+  if group == nil and versionless then
+    group, artifact = text:match("^([^:]+):([^:]+)$")
+    if group ~= nil then return { group = group, artifact = artifact, at = at } end
+  end
   if group == nil then
     error(at .. ' "' .. text .. '" is not "group:artifact:version"', 0)
   end
@@ -56,19 +62,34 @@ local function parse_coordinate(text, index, key, shared)
   return { group = group, artifact = artifact, version = version }
 end
 
-local function parse_coordinates(listed, key, shared)
+local function parse_coordinates(listed, key, shared, versionless)
   if type(listed) ~= "table" then
     error('"' .. key .. '" must be a list of "group:artifact:version" strings, not a '
           .. type(listed), 0)
   end
   local declared = {}
   for index = 1, #listed do
-    declared[index] = parse_coordinate(listed[index], index, key, shared)
+    declared[index] = parse_coordinate(listed[index], index, key, shared, versionless)
   end
   if #declared == 0 then
     error('"' .. key .. '" is empty: there is nothing to resolve', 0)
   end
   return declared
+end
+
+--- A table's `platforms` and `enforcedPlatforms`, each a list of BOM
+--- coordinates, or nil when it declares neither.
+--- @param prefix "" for the block itself, "resolve[<n>]." for an entry
+local function platforms_of(entry, shared, prefix)
+  if entry.platforms == nil and entry.enforcedPlatforms == nil then return nil end
+  local found = { raise = {}, force = {} }
+  if entry.platforms ~= nil then
+    found.raise = parse_coordinates(entry.platforms, prefix .. "platforms", shared)
+  end
+  if entry.enforcedPlatforms ~= nil then
+    found.force = parse_coordinates(entry.enforcedPlatforms, prefix .. "enforcedPlatforms", shared)
+  end
+  return found
 end
 
 --- The roots of the primary closure, or nil when the block declares none.
@@ -77,9 +98,9 @@ end
 --- instead, which is why the absence is reported by the caller rather than
 --- here: a block with neither is the real error and this function cannot see
 --- the other half.
-local function declared_of(config, shared)
+local function declared_of(config, shared, versionless)
   if config.coordinates == nil then return nil end
-  return parse_coordinates(config.coordinates, "coordinates", shared)
+  return parse_coordinates(config.coordinates, "coordinates", shared, versionless)
 end
 
 --- The roots of the TEST closure, or nil when the project declares none.
@@ -90,7 +111,7 @@ end
 --- the compile closure with extras bolted on: Gradle resolves
 --- testRuntimeClasspath as its own configuration, so a test dependency may
 --- raise a version the compile side never sees.
-local function test_declared_of(config, declared, shared)
+local function test_declared_of(config, declared, shared, versionless)
   local listed = config.testCoordinates
   if listed == nil then return nil end
   if type(listed) ~= "table" then
@@ -104,7 +125,7 @@ local function test_declared_of(config, declared, shared)
   local roots = {}
   for index = 1, #declared do roots[index] = declared[index] end
   for index = 1, #listed do
-    roots[#roots + 1] = parse_coordinate(listed[index], index, "testCoordinates", shared)
+    roots[#roots + 1] = parse_coordinate(listed[index], index, "testCoordinates", shared, versionless)
   end
   return roots
 end
@@ -216,13 +237,14 @@ local function resolutions_of(config)
   local repository = repository_of(config)
   local strategy = strategy_of(config)
   local target = config["for"] or "java"
-  local declared = declared_of(config, shared)
+  local platforms = platforms_of(config, shared, "")
+  local declared = declared_of(config, shared, platforms ~= nil)
   local resolutions = {}
 
   if declared ~= nil then
-    local test_roots = test_declared_of(config, declared, shared)
+    local test_roots = test_declared_of(config, declared, shared, platforms ~= nil)
     resolutions[1] = {
-      primary = true,
+      primary = true, platforms = platforms,
       repository = repository, strategy = strategy, target = target,
       into = "classpath", testInto = test_roots ~= nil and "testClasspath" or nil,
       path = { "classpath" }, testPath = test_roots ~= nil and { "testClasspath" } or nil,
@@ -246,14 +268,16 @@ local function resolutions_of(config)
         error("resolve[" .. index .. "] must be a table, not a " .. type(entry), 0)
       end
       local path = into_of(entry, index)
+      local entry_platforms = platforms_of(entry, shared, "resolve[" .. index .. "].")
       resolutions[#resolutions + 1] = {
         repository = repository_of(entry, repository),
         strategy = strategy_of(entry, strategy),
         target = entry["for"] or target,
         into = table.concat(path, "."),
         path = path,
+        platforms = entry_platforms,
         roots = parse_coordinates(entry.coordinates, "resolve[" .. index .. "].coordinates",
-                                  shared),
+                                  shared, entry_platforms ~= nil),
       }
     end
   end

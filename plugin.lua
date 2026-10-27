@@ -9,7 +9,7 @@
 --- and "fetch" itself. D-77, D-170.
 
 daukle.plugin{ api = 1, uses = { "fetch", "cache", "pin", "write" },
-               exports = { "lib/xml", "lib/pom", "lib/graph", "lib/resolve", "lib/output" } }
+               exports = { "lib/xml", "lib/pom", "lib/graph", "lib/platforms", "lib/resolve", "lib/output" } }
 
 local coordinates = daukle.require("lib/coordinates")
 local output = daukle.require("lib/output")
