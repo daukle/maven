@@ -16,6 +16,13 @@ local graph = {}
 -- is what keeps a closure from dragging in every library's test framework.
 local TRANSITIVE = { compile = true, runtime = true }
 
+--- A declaration without a scope takes its managed one, as Maven does: `log4j-core 2.17.1` lists
+--- `mockito-core` bare and its parent manages it as `test`, so a `compile` default pulled test
+--- frameworks into a tool's closure.
+local function scope_of(entry, managed)
+  return entry.scope or (managed ~= nil and managed.scope) or "compile"
+end
+
 local function split_version(version)
   local parts = {}
   for piece in version:gmatch("[^%.%-_]+") do
@@ -111,14 +118,12 @@ local function sweep(session, declared, chosen, strategy)
         local entry = model.declared[index]
         local group = pom.interpolate(entry.group, model.properties)
         local artifact = pom.interpolate(entry.artifact, model.properties)
-        local wanted = not entry.optional and TRANSITIVE[entry.scope] and entry.kind == "jar"
-                       and entry.classifier == nil
+        local managed = model.managed[pom.managed_key(group, artifact, entry.kind, entry.classifier)]
+        local wanted = not entry.optional and TRANSITIVE[scope_of(entry, managed)]
+                       and entry.kind == "jar" and entry.classifier == nil
         if wanted and not excluded_by(item.exclusions, group, artifact) then
           local version = pom.interpolate(entry.version, model.properties)
-          if version == nil then
-            local managed = model.managed[pom.key_of(group, artifact)]
-            if managed ~= nil then version = managed.version end
-          end
+          if version == nil and managed ~= nil then version = managed.version end
           if version ~= nil and version:find("%${") == nil then
             queue[#queue + 1] = {
               group = group, artifact = artifact, version = version,
