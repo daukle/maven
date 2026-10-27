@@ -1,0 +1,4 @@
+# 2 modules for java.classpath, 2 rounds, 5 POM fetches
+
+org.apache.logging.log4j:log4j-core:2.17.1
+org.apache.logging.log4j:log4j-api:2.17.1
