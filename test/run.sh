@@ -120,9 +120,8 @@ run_case() {
   # the only way to prove the generated Lua runs rather than merely reads right.
   # A text-only assertion passes happily on a file daukle would refuse to load.
   if [ -f "$case_dir/then" ]; then
-    # Installed only now, because daukle.include of a file that does not exist
-    # yet is a hard error: a project cannot carry the include before its first
-    # maven:resolve, and neither can a case.
+    # Installed only now: it is the project as it looks AFTER the resolve, such
+    # as one that has since dropped a toolchain the pins were written for.
     [ -f "$case_dir/then.lua" ] && cp "$case_dir/then.lua" "$sandbox/daukle.lua"
     # shellcheck disable=SC2086
     set -- $(cat "$case_dir/then")

@@ -12,12 +12,8 @@ computed.
 
 `maven:resolve` writes **Lua**, not TOML, and the difference is the whole ergonomics of the thing.
 A TOML fragment has to be pasted into `daukle.toml`, mixing generated rows into the one file you
-maintain by hand. A Lua fragment is included:
-
-```lua
--- daukle.lua
-daukle.include("daukle/maven/classpath.lua")
-```
+maintain by hand. A Lua fragment, `daukle/maven/classpath.lua`, is loaded by daukle itself, so you
+write no line to use it.
 
 The generated file is committed and lives in `daukle/`, beside the `build/` that `daukle clean`
 deletes. The two have opposite lifetimes: build output is rebuilt from nothing, and resolved pins
