@@ -53,7 +53,8 @@ testCoordinates = ["org.assertj:assertj-core:3.25.3"]
 `daukle/<toolchain>/*.lua` by itself, after `daukle.toml` and `daukle.lua`, since core `0.15.0`
 (api 6, `D-201`). Before that a project carried `daukle.include("daukle/maven/classpath.lua")` in
 `daukle.lua`, which raised whenever the file was missing and so failed the very resolve that writes
-it; such a line left in a project now does nothing.
+it; such a line left in a project still runs the file once, where it sits, and does nothing when
+the file is gone.
 
 ```sh
 daukle maven:list                 # resolve only, no downloads: build/daukle/maven/resolved.txt
