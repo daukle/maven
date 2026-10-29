@@ -23,12 +23,8 @@ daukle maven:list                 # resolve only, no downloads
 daukle maven:resolve --resolve    # resolve, fetch, hash
 ```
 
-Then add one line to `daukle.lua`, **after the first resolve**, because `daukle.include` raises on
-a file that is not there and the first resolve is the run that creates it:
-
-```lua
-daukle.include("daukle/maven/classpath.lua")
-```
+That is all: daukle loads the committed `daukle/maven/classpath.lua` by itself (daukle `0.15.0`
+or later), so nothing is added to `daukle.lua`. Delete it and the next resolve writes it again.
 
 ## Keys
 
@@ -89,7 +85,7 @@ infer the old tool from.
 
 `maven:resolve` writes **Lua**, not TOML. A TOML fragment would have to be pasted into
 `daukle.toml`, mixing generated rows into the one file you maintain by hand. The Lua fragment is
-included instead, it is committed, and it **appends**, so a classpath entry you wrote by hand
+loaded by daukle instead, it is committed, and it **appends**, so a classpath entry you wrote by hand
 survives beside the resolved ones.
 
 ## The test closure

@@ -49,16 +49,12 @@ coordinates = [
 testCoordinates = ["org.assertj:assertj-core:3.25.3"]
 ```
 
-```lua
--- daukle.lua, the one line a human writes to use the result
-daukle.include("daukle/maven/classpath.lua")
-```
-
-**That line goes in AFTER the first resolve, not before.** `daukle.include` raises on a file that
-is not there, and the first resolve is the run that creates it, so a project carrying the line on
-a fresh checkout with no `daukle/maven/` cannot even parse its manifest to run the resolve. On
-every later run, and in every clone, the file is committed and the line is what makes it load.
-This file said `build/daukle/...` until 2026-10-05, which is a path the resolve has never written.
+**Nothing else is written to use the result.** Core loads every committed
+`daukle/<toolchain>/*.lua` by itself, after `daukle.toml` and `daukle.lua`, since core `0.15.0`
+(api 6, `D-201`). Before that a project carried `daukle.include("daukle/maven/classpath.lua")` in
+`daukle.lua`, which raised whenever the file was missing and so failed the very resolve that writes
+it; such a line left in a project still runs the file once, where it sits, and does nothing when
+the file is gone.
 
 ```sh
 daukle maven:list                 # resolve only, no downloads: build/daukle/maven/resolved.txt
@@ -66,20 +62,21 @@ daukle maven:resolve --resolve    # resolve, fetch, hash: daukle/maven/classpath
 ```
 
 **Nothing is pasted anywhere, and that is the point.** The generated file is Lua rather than
-TOML so it can be `daukle.include`d, which keeps the resolved pins in a file of their own:
+TOML so core can load it as it is, which keeps the resolved pins in a file of their own:
 `daukle.toml` holds what the human wrote, `classpath.lua` holds what the resolver computed, and
 nobody is ever asked to edit the second. It APPENDS to the classpath, so a hand-written entry in
 `daukle.toml` survives beside the resolved ones.
 
 **Proved end to end**: `intisy/libs/java-utils` compiles to its 39 classes with an eleven line
-`daukle.toml` carrying no pins at all and a `daukle.lua` carrying one `include`.
+`daukle.toml` carrying no pins at all (measured with the include line core `0.15.0` made
+unnecessary).
 
 **It is written to `daukle/maven/`, which is COMMITTED**, not to `build/`, which is not. The two
 directories have opposite lifetimes: `build/daukle/` is what a tool produces on the way to an
 artifact and `daukle clean` deletes it, while `daukle/` is what a resolve produced and a clone has
 to carry. A clone with no pins could not build at all, because an ordinary build may not fetch
-anything unpinned, and it could not even parse its manifest, since `daukle.include` raises on a
-file that is not there.
+anything unpinned. A clone whose pin file was deleted still parses its manifest, so
+`maven:resolve --resolve` writes the file again.
 
 `daukle.write{ committed = true }` is gated behind `--resolve` for the same reason `daukle.pin`
 is: an ordinary build must not rewrite a file the project has committed.
@@ -169,10 +166,10 @@ resolution but the first: measured 2026-10-06 against both published releases, t
 giving two closures on `1.1.0` and one on `1.0.1`, with no diagnostic. Nothing a later release can
 do makes an earlier one loud, so the version constraint is the guard.
 
-**`daukle.include` of a file that does not exist yet is a hard error**, measured 2026-10-06. A
-project therefore cannot carry the include before its first `maven:resolve`: run the task, then
-add the line. A `<name>.lua` beside a `<name>.toml` is **not** read either, only `daukle.lua`
-beside `daukle.toml`.
+**A scope whose toolchain the manifest no longer declares does nothing.** Core loads the file on
+every command, so a scope that raised would fail the resolve that rewrites it as well; the case
+`a-pin-file-for-an-undeclared-toolchain-does-nothing` pins it. A `<name>.lua` beside a
+`<name>.toml` is **not** read, only `daukle.lua` beside `daukle.toml`.
 
 ## The test closure
 
@@ -343,7 +340,7 @@ per-artifact acquisition lines `daukle.pin` already writes are what reaches the 
 
 `lib/resolve` and `lib/output` are exported, so a plugin whose job is resolving can pin a closure
 without shelling out to this one. `resolve.pinned_groups(resolutions)` takes a list of tables and
-returns the groups `output.render(groups, header, include)` writes. It reads exactly these fields
+returns the groups `output.render(groups, header)` writes. It reads exactly these fields
 and no others (`primary` is not one of them):
 
 | field | |
@@ -356,8 +353,8 @@ and no others (`primary` is not one of them):
 | `testRoots`, `testPath` | optional, but each needs the other |
 
 `coordinates.resolutions_of` produces these. `header` is an optional first comment line naming the
-writer, and `include` the optional path the file tells its reader to `daukle.include`; each
-defaults to maven's own.
+writer, defaulting to maven's own. Core loads the file wherever under `daukle/<toolchain>/` the
+caller writes it, so there is no path to pass.
 
 **The second argument is the verbs**: `resolve.pinned_groups(resolutions, { cache = daukle.cache,
 fetch = daukle.fetch, pin = daukle.pin })`. Core gives a module required across a plugin boundary

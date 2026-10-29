@@ -1,0 +1,26 @@
+schema = 1
+project = "daukle/maven-test"
+version = "1.0.0"
+
+[modules]
+
+[plugins]
+maven = "./plugins"
+demo = "./demo"
+
+[toolchains.demo]
+
+[toolchains.other]
+
+# The second command's daukle.lua removes [toolchains.other] after the pins were
+# written, which is what a project that drops a toolchain looks like. Core loads
+# the pin file anyway, so its scope for "other" must do nothing rather than fail
+# every command, the resolve that would rewrite it included.
+[toolchains.maven]
+for = "demo"
+coordinates = ["org.slf4j:slf4j-api:1.7.36"]
+
+[[toolchains.maven.resolve]]
+for = "other"
+coordinates = ["org.opentest4j:opentest4j:1.3.0"]
+into = "classpath"
