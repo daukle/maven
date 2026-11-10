@@ -23,31 +23,66 @@ local function scope_of(entry, managed)
   return entry.scope or (managed ~= nil and managed.scope) or "compile"
 end
 
-local function split_version(version)
+--- Gradle's own special qualifiers, matched case-insensitively: `dev` below every other word,
+--- the rest above every other word in this order.
+local QUALIFIER_RANK = { dev = -1, rc = 1, snapshot = 2, final = 3, ga = 4, release = 5, sp = 6 }
+
+--- The parts Gradle splits a version into: at `.`, `-`, `_` and `+`, and again wherever digits
+--- meet letters, so `1a1` is `1.a.1`.
+local function parts_of(version)
   local parts = {}
-  for piece in version:gmatch("[^%.%-_]+") do
-    local number = tonumber(piece)
-    parts[#parts + 1] = { number ~= nil and 0 or 1, number or piece }
+  for piece in version:gmatch("[^%.%-_+]+") do
+    local position = 1
+    while position <= #piece do
+      local first, last = piece:find(piece:sub(position, position):find("%d") and "^%d+" or "^%D+",
+                                      position)
+      parts[#parts + 1] = piece:sub(first, last)
+      position = last + 1
+    end
   end
   return parts
 end
 
---- True when left is the higher version. Numeric pieces compare as numbers and
---- sort below textual ones, so 1.324 beats 1.99 and a release beats its own
---- "1.0-alpha". Textual pieces fall back to string order.
+local function is_numeric(part)
+  return part:find("^%d+$") ~= nil
+end
+
+--- Compares digit strings exactly, so a timestamp part longer than a double holds still orders.
+local function compare_numbers(left, right)
+  left, right = left:gsub("^0+", ""), right:gsub("^0+", "")
+  if #left ~= #right then return #left < #right and -1 or 1 end
+  if left == right then return 0 end
+  return left < right and -1 or 1
+end
+
+local function compare_words(left, right)
+  local left_rank, right_rank = QUALIFIER_RANK[left:lower()] or 0, QUALIFIER_RANK[right:lower()] or 0
+  if left_rank ~= right_rank then return left_rank < right_rank and -1 or 1 end
+  if left_rank ~= 0 or left == right then return 0 end
+  return left < right and -1 or 1
+end
+
+local function compare_parts(left, right)
+  local left_numeric, right_numeric = is_numeric(left), is_numeric(right)
+  if left_numeric and right_numeric then return compare_numbers(left, right) end
+  if left_numeric ~= right_numeric then return left_numeric and 1 or -1 end
+  return compare_words(left, right)
+end
+
+--- True when left is the higher version, by Gradle's version ordering (user guide 9.9.1,
+--- "Understanding version ordering"): a numeric part beats a word, so `1.0-alpha` is below `1.0`
+--- and an extra numeric part raises a version while an extra word lowers it.
+--- @implNote Maven's order differs in places (`1.0` equals `1` there), and it is used under
+--- `nearest` only to compare two platforms raising one module.
 function graph.is_higher(left, right)
-  local a = split_version(left)
-  local b = split_version(right)
-  local limit = #a > #b and #a or #b
-  for index = 1, limit do
-    local one = a[index]
-    local two = b[index]
-    if one == nil then return false end
-    if two == nil then return true end
-    if one[1] ~= two[1] then return one[1] < two[1] end
-    if one[2] ~= two[2] then return one[2] > two[2] end
+  local a, b = parts_of(left), parts_of(right)
+  for index = 1, math.min(#a, #b) do
+    local order = compare_parts(a[index], b[index])
+    if order ~= 0 then return order > 0 end
   end
-  return false
+  if #a == #b then return false end
+  local longer, extra = #a > #b, (#a > #b and a or b)[math.min(#a, #b) + 1]
+  return longer == is_numeric(extra)
 end
 
 local function excluded_by(exclusions, group, artifact)
