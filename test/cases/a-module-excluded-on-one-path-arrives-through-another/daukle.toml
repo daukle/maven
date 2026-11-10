@@ -1,0 +1,12 @@
+schema = 1
+project = "daukle/maven-test"
+version = "1.0.0"
+
+[modules]
+
+[plugins]
+maven = "./plugins"
+
+[toolchains.maven]
+repository = "@REPOSITORY@"
+coordinates = ["daukle.test.excludedononepath:a:1.0", "daukle.test.excludedononepath:b:1.0"]

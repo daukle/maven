@@ -104,6 +104,17 @@ local function with(exclusions, extra)
   return combined
 end
 
+--- Which exclusions apply, as one string, so two paths reaching a module under different
+--- exclusions each walk it: a module excluded on one path still arrives through the other.
+local function exclusion_identity(exclusions)
+  local names = {}
+  for index = 1, #exclusions do
+    names[index] = tostring(exclusions[index].group) .. ":" .. tostring(exclusions[index].artifact)
+  end
+  table.sort(names)
+  return table.concat(names, ",")
+end
+
 local function better(strategy, candidate, incumbent)
   if strategy == "nearest" then return candidate.depth < incumbent.depth end
   return graph.is_higher(candidate.version, incumbent.version)
@@ -145,7 +156,7 @@ local function sweep(session, declared, chosen, strategy)
     -- this line the loser's children enter the graph and the answer is wrong
     -- in a way that still looks like a closure.
     local effective = chosen[key] or item.version
-    local visit = key .. "@" .. effective .. "#" .. tostring(#item.exclusions)
+    local visit = key .. "@" .. effective .. "#" .. exclusion_identity(item.exclusions)
     if not visited[visit] then
       visited[visit] = true
       local model = pom.load(session, item.group, item.artifact, effective)

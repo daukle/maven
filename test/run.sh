@@ -36,6 +36,42 @@ fail() {
   failed=$((failed + 1))
 }
 
+# Port 0 lets the system pick, because a fixed port can fall in a range Windows
+# reserves for Hyper-V and refuses to bind.
+REPOSITORY_SERVER='
+import functools, http.server, os, sys
+handler = functools.partial(http.server.SimpleHTTPRequestHandler, directory=sys.argv[1])
+server = http.server.ThreadingHTTPServer(("127.0.0.1", 0), handler)
+with open(sys.argv[2] + ".tmp", "w") as out:
+    out.write(str(server.server_port))
+os.replace(sys.argv[2] + ".tmp", sys.argv[2])
+server.serve_forever()
+'
+
+servers=
+trap 'for server in $servers; do kill "$server" 2>/dev/null || true; done' EXIT
+
+# A case carrying repository/ resolves against those POMs, served from loopback,
+# and names the url as @REPOSITORY@: some graph shapes have no real artifacts.
+# Its groups must be unique to the case, because core caches a POM by coordinate.
+serve_repository() {
+  python=
+  for candidate in python3 python; do
+    command -v "$candidate" >/dev/null 2>&1 && "$candidate" -c 'import sys' >/dev/null 2>&1 &&
+      python=$candidate && break
+  done
+  [ -n "$python" ] || return 1
+  port_file="$sandbox.port"
+  rm -f "$port_file"
+  "$python" -c "$REPOSITORY_SERVER" "$1" "$port_file" >"$sandbox.server.log" 2>&1 &
+  servers="$servers $!"
+  for _ in $(seq 60); do
+    [ -s "$port_file" ] && repository_port=$(cat "$port_file") && return 0
+    sleep 1
+  done
+  return 1
+}
+
 run_case() {
   case_dir=$1
   name=$(basename "$case_dir")
@@ -55,6 +91,12 @@ run_case() {
   mkdir -p "$sandbox/plugins"
   cp "$root/plugin.lua" "$sandbox/plugins/plugin.lua"
   cp -R "$root/lib" "$sandbox/plugins/lib"
+
+  if [ -d "$case_dir/repository" ]; then
+    rm -rf "$sandbox/repository"
+    serve_repository "$case_dir/repository" || { fail "$name" "the repository server did not start"; return; }
+    sed "s|@REPOSITORY@|http://127.0.0.1:$repository_port|g" "$case_dir/daukle.toml" > "$sandbox/daukle.toml"
+  fi
 
   task=maven:list
   [ -f "$case_dir/task" ] && task=$(cat "$case_dir/task")

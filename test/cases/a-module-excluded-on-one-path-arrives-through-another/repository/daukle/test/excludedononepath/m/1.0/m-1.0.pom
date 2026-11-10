@@ -1,0 +1,18 @@
+<project>
+  <modelVersion>4.0.0</modelVersion>
+  <groupId>daukle.test.excludedononepath</groupId>
+  <artifactId>m</artifactId>
+  <version>1.0</version>
+  <dependencies>
+    <dependency>
+      <groupId>daukle.test.excludedononepath</groupId>
+      <artifactId>x</artifactId>
+      <version>1.0</version>
+    </dependency>
+    <dependency>
+      <groupId>daukle.test.excludedononepath</groupId>
+      <artifactId>y</artifactId>
+      <version>1.0</version>
+    </dependency>
+  </dependencies>
+</project>
