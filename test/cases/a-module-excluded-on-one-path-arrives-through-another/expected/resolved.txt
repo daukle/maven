@@ -1,0 +1,5 @@
+daukle.test.excludedononepath:a:1.0
+daukle.test.excludedononepath:b:1.0
+daukle.test.excludedononepath:m:1.0
+daukle.test.excludedononepath:x:1.0
+daukle.test.excludedononepath:y:1.0
